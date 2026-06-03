@@ -5,6 +5,10 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.1.1
+    - Moved "Import backup" out from under the narration box into
+      the Projects panel, next to Save / Load (it restores a
+      backup file, not a narration). Added a Load-vs-Import note.
   v1.1.0
     - Added favicon (browser-tab / bookmark icon).
     - Added version number (footer) + this changelog block.
@@ -181,11 +185,6 @@
     <textarea id="script" placeholder="Paste your voiceover / narration script here…"></textarea>
     <div id="inputMsg" class="msg"></div>
 
-    <div class="btn-row" style="margin:2px 0 18px">
-      <button class="ghost tiny" id="importBtn">⤒ Import backup (HTML / JSON)</button>
-      <input type="file" id="importFile" accept=".html,.htm,.json,application/json,text/html" class="hidden">
-    </div>
-
     <div class="grid">
       <div>
         <div class="toggle-row">
@@ -324,18 +323,23 @@
     </div>
     <div class="save-row" style="margin-top:12px">
       <div class="grow">
-        <label for="projLoad">Saved projects</label>
+        <label for="projLoad">Saved projects (this browser)</label>
         <select id="projLoad"><option value="">— select —</option></select>
       </div>
       <button class="ghost" id="loadProj">Load</button>
       <button class="ghost" id="delProj">Delete</button>
     </div>
-    <p class="hint" style="margin-top:12px">Saved in this browser only. Your latest work also auto-restores on reload. For a portable backup, use “Download backup (HTML)” after generating shots.</p>
+    <label for="importBtn" style="margin-top:16px">From a backup file</label>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="ghost" id="importBtn">⤒ Import backup (HTML / JSON)</button>
+      <input type="file" id="importFile" accept=".html,.htm,.json,application/json,text/html" class="hidden">
+    </div>
+    <p class="hint" style="margin-top:12px"><b>Load</b> restores a project saved in this browser. <b>Import</b> restores from a downloaded HTML / JSON backup file, so it works across devices. Your latest work also auto-restores on reload.</p>
   </section>
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.1.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.1.1</div>
   </footer>
 </div>
 <div id="toast"></div>
