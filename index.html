@@ -5,6 +5,21 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.4.1
+    - Summarize fix: when Summarize is on, the super-prompt now tells
+      the model to set the shot count FROM the short version it writes
+      (~1 shot per clip length), instead of forcing the full-script
+      number. Added an on-screen reminder by the shot count whenever
+      Summarize is active.
+  v1.4.0
+    - Hooks/descriptions, translation/short-version, and the
+      consistency bible are now collapsible cards (click to expand;
+      collapsed by default) — big reduction in page length.
+    - Replaced the single jump button with a floating "Quick jump"
+      grid (5 columns) of every shot number; click to scroll to a
+      shot, current shot highlighted, Hide/Show toggle.
+    - Every export (HTML backup, JSON, CSV) is now stamped with the
+      app version that built it.
   v1.3.0
     - Each project now generates 3 thumbnail hooks / titles and 3
       short descriptions (strongest first; top one badged
@@ -182,8 +197,28 @@
   .collapsed .sec-body{display:none}
   .collapsed .chev{transform:rotate(-90deg)}
   #superPrompt{max-height:300px;overflow:auto}
-  #jumpFab{position:fixed;right:18px;bottom:24px;z-index:50;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:999px;padding:10px 16px;font-family:var(--body);font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:opacity .15s}
-  #jumpFab:hover{opacity:.9}
+  #jumpPanel{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;width:184px;max-height:74vh;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,.16);overflow:hidden}
+  #jumpBar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+  #jumpBar .t{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  #jumpToggle{border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer}
+  #jumpGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:12px;overflow:auto}
+  #jumpGrid button{padding:7px 0;font-size:12px;font-weight:600;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);border-radius:7px;cursor:pointer}
+  #jumpGrid button:hover{border-color:var(--accent)}
+  #jumpGrid button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  #jumpPanel.min{width:auto}
+  #jumpPanel.min #jumpGrid{display:none}
+  #jumpPanel.min #jumpBar{border-bottom:none}
+  @media (max-width:560px){
+    #jumpPanel{right:10px;width:150px;max-height:60vh}
+    #jumpGrid{gap:5px;padding:9px}
+    #jumpGrid button{padding:6px 0;font-size:11px}
+  }
+  .ccard{border:1px solid var(--line);border-radius:12px;background:#fff;margin:0 0 14px;overflow:hidden}
+  .cc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer;user-select:none}
+  .cc-title{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .cc-body{padding:0 16px 16px}
+  .cc-body p{margin:5px 0;font-size:14px}
+  .collapsed .cc-body{display:none}
   .packbox{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:0 0 16px;background:#fff}
   .packbox h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 12px;font-weight:500}
   .pack-grp{margin-bottom:14px}
@@ -289,6 +324,8 @@
       </div>
     </div>
 
+    <p id="sumNote" class="hidden" style="margin-top:12px;font-size:13px;background:#FBF3E2;color:#7A5A12;border:1px solid #ECD9A8;padding:9px 13px;border-radius:9px">Summarize is on — the shot count will be decided from the short version the AI writes, so the number above is only a rough hint (it won't shrink on its own). Lower it if you want a hard cap.</p>
+
     <div class="btn-row">
       <button class="accent" id="buildBtn">Build super-prompt →</button>
     </div>
@@ -384,10 +421,13 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.3.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.4.1</div>
   </footer>
 </div>
-<button id="jumpFab" class="hidden">↓ Jump to shots</button>
+<div id="jumpPanel" class="hidden">
+  <div id="jumpBar"><span class="t" id="jumpTitle">Quick jump</span><button id="jumpToggle">Hide</button></div>
+  <div id="jumpGrid"></div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -396,6 +436,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
+const APP_VERSION = "1.4.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 
@@ -434,6 +475,8 @@ $("shotCount").addEventListener("input", () => { $("shotCount").dataset.touched 
 $("style").addEventListener("change", () => {
   $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
 });
+function reflectSummarize(){ $("sumNote").classList.toggle("hidden", !$("summarize").checked); }
+$("summarize").addEventListener("change", reflectSummarize);
 function currentStyle(){
   return $("style").value === "__custom" ? ($("styleCustom").value.trim() || "Cinematic") : $("style").value;
 }
@@ -499,6 +542,12 @@ function buildSuperPrompt(script){
   const sumLine = summarize
     ? `Produce a SELF-CONTAINED short version — a complete standalone piece, NOT a teaser or invitation to watch a longer video — then base the shots on that short version. Put it in "summary".`
     : `Use the full script. Set "summary" to null.`;
+  const shotCountLine = summarize
+    ? `- Number of shots: decide it yourself from the SHORT VERSION you write — roughly one shot per ${clip}s of that shorter narration. Do NOT pad to a fixed number; ${shots} is only a loose upper limit.`
+    : `- Target number of shots: about ${shots}. Each shot ≈ ${clip}s.`;
+  const splitLine = summarize
+    ? `- After writing the short version, split THAT (not the full script) into shots aligned to sentence/clause boundaries — about one shot per ~${clip}s of the short version.`
+    : `- Split the narration into about ${shots} shots, aligned to sentence/clause boundaries so each shot maps to a coherent line of narration.`;
 
   return (
 `You are an expert at turning a voiceover / narration script into a shot-by-shot plan of AI image and video generation prompts.
@@ -515,7 +564,7 @@ SETTINGS
 - Visual style (apply to EVERY shot): ${style}
 - Target video generator: ${tool} — phrase prompts in natural language suited to it.
 - Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}
-- Target number of shots: about ${shots}. Each shot ≈ ${clip}s.
+${shotCountLine}
 
 CONSISTENCY BIBLE (do this first)
 - Identify the recurring subjects/characters and give each FIXED visual descriptors (look, wardrobe, age, etc.).
@@ -523,7 +572,7 @@ CONSISTENCY BIBLE (do this first)
 - Every shot below MUST stay consistent with this bible and the chosen style, so the shots read as one cohesive video.
 
 SHOT RULES
-- Split the narration into about ${shots} shots, aligned to sentence/clause boundaries so each shot maps to a coherent line of narration.
+${splitLine}
 - Give each shot a timecode range assuming ~${clip}s per shot (e.g. 0:00-0:0${clip < 10 ? clip : clip}).
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
@@ -596,36 +645,42 @@ function renderResult(d){
   const lang = d.detected_language ? (" · detected " + d.detected_language) : "";
   $("resultTitle").textContent = d.shots.length + " shots" + lang;
 
-  // hooks & descriptions
+  // hooks & descriptions (collapsible, default collapsed)
   const hooks = Array.isArray(d.hooks) ? d.hooks.filter(x => x != null && String(x).trim()) : [];
   const descs = Array.isArray(d.descriptions) ? d.descriptions.filter(x => x != null && String(x).trim()) : [];
   const hb = $("hooksBox");
   if (hooks.length || descs.length){
-    hb.className = "packbox";
-    hb.innerHTML =
-      '<h3>Thumbnail hooks &amp; descriptions</h3>' +
+    const body =
       (hooks.length ? '<div class="pack-grp"><div class="opt-badge" style="color:var(--ink-soft)">Hooks / titles</div>' + optList(hooks, "hook") + '</div>' : '') +
       (descs.length ? '<div class="pack-grp"><div class="opt-badge" style="color:var(--ink-soft)">Descriptions</div>' + optList(descs, "desc") + '</div>' : '');
+    hb.className = "ccard collapsed";
+    hb.innerHTML = cardHead("Thumbnail hooks & descriptions") + '<div class="cc-body">' + body + '</div>';
     hb.querySelectorAll("button[data-copyval]").forEach(b =>
       b.addEventListener("click", () => copy(decodeURIComponent(b.dataset.copyval), "Copied"))
     );
   } else { hb.className = "hidden"; hb.innerHTML = ""; }
 
-  // translation / summary
+  // translation / short version (collapsible, default collapsed)
   const tb = $("transBox");
-  const parts = [];
-  if (d.translated_script) parts.push("<h3>Translation</h3><p>" + escapeHTML(d.translated_script) + "</p>");
-  if (d.summary) parts.push("<h3>Short version</h3><p>" + escapeHTML(d.summary) + "</p>");
-  if (parts.length){ tb.innerHTML = parts.join("<br>"); tb.classList.remove("hidden"); } else tb.classList.add("hidden");
+  let tTitle = "", tbody = "";
+  if (d.translated_script && d.summary){
+    tTitle = "Translation & short version";
+    tbody = '<div class="opt-badge" style="color:var(--ink-soft)">Translation</div><p>' + escapeHTML(d.translated_script) + '</p>' +
+            '<div class="opt-badge" style="color:var(--ink-soft);margin-top:12px">Short version</div><p>' + escapeHTML(d.summary) + '</p>';
+  } else if (d.translated_script){ tTitle = "Translation"; tbody = '<p>' + escapeHTML(d.translated_script) + '</p>'; }
+  else if (d.summary){ tTitle = "Short version"; tbody = '<p>' + escapeHTML(d.summary) + '</p>'; }
+  if (tbody){ tb.className = "ccard collapsed"; tb.innerHTML = cardHead(tTitle) + '<div class="cc-body">' + tbody + '</div>'; }
+  else { tb.className = "hidden"; tb.innerHTML = ""; }
 
-  // bible
+  // consistency bible (collapsible, default collapsed)
   const bb = $("bibleBox"), cb = d.consistency_bible || {};
   const bp = [];
   if (cb.subjects && cb.subjects.length) bp.push("<p><b>Subjects:</b> " + escapeHTML([].concat(cb.subjects).join("; ")) + "</p>");
   if (cb.setting) bp.push("<p><b>Setting:</b> " + escapeHTML(cb.setting) + "</p>");
   if (cb.palette) bp.push("<p><b>Palette:</b> " + escapeHTML(cb.palette) + "</p>");
   if (cb.tone) bp.push("<p><b>Tone:</b> " + escapeHTML(cb.tone) + "</p>");
-  if (bp.length){ bb.innerHTML = "<h3>Consistency bible</h3>" + bp.join(""); bb.classList.remove("hidden"); } else bb.classList.add("hidden");
+  if (bp.length){ bb.className = "ccard collapsed"; bb.innerHTML = cardHead("Consistency bible") + '<div class="cc-body">' + bp.join("") + '</div>'; }
+  else { bb.className = "hidden"; bb.innerHTML = ""; }
 
   // shots
   const host = $("shots"); host.innerHTML = "";
@@ -649,7 +704,11 @@ function renderResult(d){
   host.querySelectorAll("button[data-copy]").forEach(b => {
     b.addEventListener("click", () => copy(RESULT.shots[+b.dataset.i][b.dataset.copy] || "", "Copied"));
   });
-  updateFab();
+  buildJump();
+  updateJump();
+}
+function cardHead(title){
+  return '<div class="cc-head"><span class="cc-title">' + escapeHTML(title) + '</span><span class="chev">▾</span></div>';
 }
 function optList(items, kind){
   return items.map((t,i) => {
@@ -672,12 +731,14 @@ $("exportCsv").addEventListener("click", () => {
   if (!RESULT) return;
   const rows = [["n","timecode","narration","image_prompt","video_prompt"]];
   RESULT.shots.forEach((s,i) => rows.push([s.n ?? i+1, s.timecode||"", s.narration||"", s.image_prompt||"", s.video_prompt||""]));
-  const csv = rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+  const header = "# Script to Shot Prompts v" + APP_VERSION + " — exported " + new Date().toISOString().slice(0,10) + "\r\n";
+  const csv = header + rows.map(r => r.map(csvCell).join(",")).join("\r\n");
   download(csv, "shot-prompts.csv", "text/csv");
 });
 $("exportJson").addEventListener("click", () => {
   if (!RESULT) return;
-  download(JSON.stringify(RESULT, null, 2), "shot-prompts.json", "application/json");
+  const out = Object.assign({ app: "Script to Shot Prompts", app_version: APP_VERSION, exported_at: new Date().toISOString() }, RESULT);
+  download(JSON.stringify(out, null, 2), "shot-prompts.json", "application/json");
 });
 function download(text, name, type){
   const blob = new Blob([text], {type}), url = URL.createObjectURL(blob);
@@ -700,7 +761,7 @@ function currentState(){
 function applyState(p, projName){
   $("script").value = p.script || "";
   const s = p.settings || {};
-  $("translate").checked = !!s.translate; $("summarize").checked = !!s.summarize;
+  $("translate").checked = !!s.translate; $("summarize").checked = !!s.summarize; reflectSummarize();
   $("targetLang").value = s.targetLang || "English";
   $("style").value = s.style || "Cinematic"; $("styleCustom").value = s.styleCustom || "";
   $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
@@ -759,7 +820,7 @@ document.addEventListener("change", saveDraftSoon);
 $("newProjBtn").addEventListener("click", () => {
   if (!confirm("Start a new project? This clears the current script and result.\n(Your saved projects and any downloaded backups are kept.)")) return;
   $("script").value = "";
-  $("translate").checked = false; $("summarize").checked = false; $("targetLang").value = "English";
+  $("translate").checked = false; $("summarize").checked = false; reflectSummarize(); $("targetLang").value = "English";
   $("style").value = "Cinematic"; $("styleCustom").value = ""; $("styleCustom").classList.add("hidden");
   $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 4;
   $("shotCount").value = 0; delete $("shotCount").dataset.touched;
@@ -770,7 +831,7 @@ $("newProjBtn").addEventListener("click", () => {
   ["inputMsg","parseMsg"].forEach(id => { $(id).className = "msg"; $(id).textContent = ""; });
   localStorage.removeItem(DKEY);
   updateStats();
-  updateFab();
+  updateJump();
   window.scrollTo({ top:0, behavior:"smooth" });
   toast("New project — ready");
 });
@@ -780,10 +841,11 @@ function slugify(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").rep
 $("exportHtml").addEventListener("click", () => {
   if (!RESULT){ toast("Nothing to back up yet"); return; }
   const st = currentState(), s = st.settings;
+  st.app_version = APP_VERSION; st.exported_at = new Date().toISOString();
   const name = $("projName").value.trim() || "Untitled project";
   const when = new Date().toLocaleString();
   const styleLabel = s.style === "__custom" ? (s.styleCustom || "Custom") : s.style;
-  const meta = [styleLabel, s.tool, (s.mode === "i2v" ? "Image-to-video" : "Text-to-video"),
+  const meta = ["v" + APP_VERSION, styleLabel, s.tool, (s.mode === "i2v" ? "Image-to-video" : "Text-to-video"),
                 "~" + s.clipLen + "s/shot", RESULT.shots.length + " shots"].join(" · ");
 
   const cb = RESULT.consistency_bible || {}, bp = [];
@@ -918,25 +980,47 @@ function collapseWorkflow(){ ["promptSection","parseSection"].forEach(id => $(id
 document.querySelectorAll(".sec-head").forEach(h =>
   h.addEventListener("click", () => h.closest("section").classList.toggle("collapsed"))
 );
-
-const fab = $("jumpFab");
-function updateFab(){
-  if (!RESULT || $("resultSection").classList.contains("hidden")){ fab.classList.add("hidden"); return; }
-  fab.classList.remove("hidden");
-  const top = $("resultSection").getBoundingClientRect().top;
-  if (top > 140){ fab.dataset.mode = "down"; fab.textContent = "↓ Jump to shots"; }
-  else { fab.dataset.mode = "up"; fab.textContent = "↑ Top"; }
-}
-fab.addEventListener("click", () => {
-  if (fab.dataset.mode === "up") window.scrollTo({ top:0, behavior:"smooth" });
-  else $("resultSection").scrollIntoView({ behavior:"smooth", block:"start" });
+// collapsible result cards (delegated, since they're rebuilt on each render)
+document.addEventListener("click", (e) => {
+  const head = e.target.closest(".cc-head");
+  if (head) head.closest(".ccard").classList.toggle("collapsed");
 });
-window.addEventListener("scroll", updateFab, { passive:true });
-window.addEventListener("resize", updateFab);
+
+/* floating jump-to-shot grid */
+function buildJump(){
+  const grid = $("jumpGrid"); grid.innerHTML = "";
+  if (!RESULT || !Array.isArray(RESULT.shots)) return;
+  $("jumpTitle").textContent = "Quick jump (" + RESULT.shots.length + ")";
+  RESULT.shots.forEach((sh,i) => {
+    const b = document.createElement("button");
+    b.textContent = (sh.n ?? i+1);
+    b.addEventListener("click", () => {
+      const card = $("shots").children[i];
+      if (card) card.scrollIntoView({ behavior:"smooth", block:"start" });
+    });
+    grid.appendChild(b);
+  });
+}
+function updateJump(){
+  const panel = $("jumpPanel");
+  if (!RESULT || $("resultSection").classList.contains("hidden")){ panel.classList.add("hidden"); return; }
+  panel.classList.remove("hidden");
+  const cards = $("shots").children, btns = $("jumpGrid").children;
+  let active = 0;
+  for (let i=0;i<cards.length;i++){ if (cards[i].getBoundingClientRect().top <= 160) active = i; else break; }
+  for (let i=0;i<btns.length;i++) btns[i].classList.toggle("active", i===active);
+}
+$("jumpToggle").addEventListener("click", () => {
+  const min = $("jumpPanel").classList.toggle("min");
+  $("jumpToggle").textContent = min ? "Show" : "Hide";
+});
+window.addEventListener("scroll", updateJump, { passive:true });
+window.addEventListener("resize", updateJump);
 
 /* ---------- init ---------- */
 refreshProjectList();
 restoreDraft();
+reflectSummarize();
 </script>
 </body>
 </html>
