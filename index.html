@@ -5,6 +5,11 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.3.0
+    - Each project now generates 3 thumbnail hooks / titles and 3
+      short descriptions (strongest first; top one badged
+      "Recommended"), each copyable, in a card at the top of the
+      results. Included in JSON export and HTML backup.
   v1.2.0
     - Fixed Translate / Summarize toggles: the switch knob is now
       clickable (was only the text label before).
@@ -179,6 +184,15 @@
   #superPrompt{max-height:300px;overflow:auto}
   #jumpFab{position:fixed;right:18px;bottom:24px;z-index:50;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:999px;padding:10px 16px;font-family:var(--body);font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:opacity .15s}
   #jumpFab:hover{opacity:.9}
+  .packbox{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:0 0 16px;background:#fff}
+  .packbox h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 12px;font-weight:500}
+  .pack-grp{margin-bottom:14px}
+  .pack-grp:last-child{margin-bottom:0}
+  .opt-badge{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+  .opt{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:var(--paper)}
+  .opt:last-child{margin-bottom:0}
+  .opt.best{border-color:var(--accent);background:var(--accent-soft)}
+  .opt-txt{flex:1;font-size:14px;line-height:1.4}
   .hidden{display:none!important}
 </style>
 </head>
@@ -327,6 +341,7 @@
   <section id="resultSection" class="hidden">
     <p class="step-tag">Step 4 — Your shot list</p>
     <h2 id="resultTitle">Shots</h2>
+    <div id="hooksBox" class="hidden"></div>
     <div id="transBox" class="bible hidden"></div>
     <div id="bibleBox" class="bible hidden"></div>
     <div id="shots"></div>
@@ -369,7 +384,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.2.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.3.0</div>
   </footer>
 </div>
 <button id="jumpFab" class="hidden">↓ Jump to shots</button>
@@ -440,6 +455,8 @@ const SCHEMA = `{
   "detected_language": "string",
   "translated_script": "string or null",
   "summary": "string or null",
+  "hooks": ["3 short punchy thumbnail/title hooks, strongest first"],
+  "descriptions": ["3 short video descriptions (1-2 sentences each), strongest first"],
   "consistency_bible": {
     "subjects": ["fixed visual descriptors for each recurring subject/character"],
     "setting": "string",
@@ -511,6 +528,11 @@ SHOT RULES
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
 
+TITLES & DESCRIPTIONS
+- "hooks": 3 short, punchy lines that work as a thumbnail caption AND as a video title (keep each roughly under 60 characters). Order them strongest first.
+- "descriptions": 3 short video descriptions, 1-2 sentences each, ordered strongest first.
+- Base both on the final script (translated/summarised if requested) and match its tone.
+
 OUTPUT FORMAT — CRITICAL
 - Respond with STRICT, VALID JSON ONLY.
 - No explanation, no markdown, no code fences, nothing before or after the JSON.
@@ -574,6 +596,21 @@ function renderResult(d){
   const lang = d.detected_language ? (" · detected " + d.detected_language) : "";
   $("resultTitle").textContent = d.shots.length + " shots" + lang;
 
+  // hooks & descriptions
+  const hooks = Array.isArray(d.hooks) ? d.hooks.filter(x => x != null && String(x).trim()) : [];
+  const descs = Array.isArray(d.descriptions) ? d.descriptions.filter(x => x != null && String(x).trim()) : [];
+  const hb = $("hooksBox");
+  if (hooks.length || descs.length){
+    hb.className = "packbox";
+    hb.innerHTML =
+      '<h3>Thumbnail hooks &amp; descriptions</h3>' +
+      (hooks.length ? '<div class="pack-grp"><div class="opt-badge" style="color:var(--ink-soft)">Hooks / titles</div>' + optList(hooks, "hook") + '</div>' : '') +
+      (descs.length ? '<div class="pack-grp"><div class="opt-badge" style="color:var(--ink-soft)">Descriptions</div>' + optList(descs, "desc") + '</div>' : '');
+    hb.querySelectorAll("button[data-copyval]").forEach(b =>
+      b.addEventListener("click", () => copy(decodeURIComponent(b.dataset.copyval), "Copied"))
+    );
+  } else { hb.className = "hidden"; hb.innerHTML = ""; }
+
   // translation / summary
   const tb = $("transBox");
   const parts = [];
@@ -613,6 +650,14 @@ function renderResult(d){
     b.addEventListener("click", () => copy(RESULT.shots[+b.dataset.i][b.dataset.copy] || "", "Copied"));
   });
   updateFab();
+}
+function optList(items, kind){
+  return items.map((t,i) => {
+    const v = String(t);
+    return '<div class="opt' + (i===0 ? ' best' : '') + '">' +
+      '<div class="opt-txt">' + (i===0 ? '<span class="opt-badge">★ Recommended</span>' : '') + escapeHTML(v) + '</div>' +
+      '<button class="ghost tiny" data-copyval="' + encodeURIComponent(v) + '">Copy</button></div>';
+  }).join("");
 }
 function promptField(label, key, i, val){
   return '<div class="pf"><div class="pf-label"><span>' + label + '</span>' +
@@ -762,6 +807,20 @@ $("exportHtml").addEventListener("click", () => {
     '</div>'
   ).join("");
 
+  const bkHooks = Array.isArray(RESULT.hooks) ? RESULT.hooks.filter(x => x != null && String(x).trim()) : [];
+  const bkDescs = Array.isArray(RESULT.descriptions) ? RESULT.descriptions.filter(x => x != null && String(x).trim()) : [];
+  function optRowsHTML(items){
+    return items.map((t,i) => '<div class="opt' + (i===0 ? ' best' : '') + '">' +
+      '<div class="opt-txt">' + (i===0 ? '<span class="ob">★ Recommended</span>' : '') + escapeHTML(String(t)) + '</div>' +
+      '<button data-copyval="' + encodeURIComponent(String(t)) + '">Copy</button></div>').join("");
+  }
+  const packHTML = (bkHooks.length || bkDescs.length)
+    ? '<div class="bx"><h3>Thumbnail hooks &amp; descriptions</h3>' +
+      (bkHooks.length ? '<div class="ob2">Hooks / titles</div>' + optRowsHTML(bkHooks) : '') +
+      (bkDescs.length ? '<div class="ob2" style="margin-top:12px">Descriptions</div>' + optRowsHTML(bkDescs) : '') +
+      '</div>'
+    : '';
+
   const dataJSON = JSON.stringify(st).replace(/</g,"\\u003c").replace(/>/g,"\\u003e");
 
   const doc =
@@ -782,13 +841,21 @@ $("exportHtml").addEventListener("click", () => {
 '.pl span{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5A554C}' +
 '.pt{margin:0;font-size:14px;background:#FBFAF6;border:1px solid #E2DDD1;border-radius:8px;padding:9px 11px;white-space:pre-wrap}' +
 'button{font:inherit;font-size:12px;cursor:pointer;border:1px solid #CFC8B8;background:#fff;border-radius:999px;padding:4px 12px}' +
-'button:hover{background:#F4F2EB}</style></head><body><div class="w">' +
+'button:hover{background:#F4F2EB}' +
+'.opt{display:flex;align-items:center;gap:10px;padding:8px 11px;border:1px solid #E2DDD1;border-radius:9px;margin:0 0 8px;background:#FBFAF6}' +
+'.opt.best{border-color:#B4521E;background:#F1E2D7}.opt-txt{flex:1;font-size:14px}' +
+'.ob{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B4521E;margin-bottom:2px}' +
+'.ob2{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5A554C;margin-bottom:6px}' +
+'</style></head><body><div class="w">' +
 '<h1>' + escapeHTML(name) + '</h1><p class="meta">Backup · ' + escapeHTML(when) + ' · ' + escapeHTML(meta) + '</p>' +
-transHTML + bibleHTML + shotsHTML +
+packHTML + transHTML + bibleHTML + shotsHTML +
 '<scr' + 'ipt type="application/json" id="d">' + dataJSON + '</scr' + 'ipt>' +
 '<scr' + 'ipt>var D=JSON.parse(document.getElementById("d").textContent);' +
 'document.querySelectorAll("button[data-i]").forEach(function(b){b.addEventListener("click",function(){' +
 'var t=(D.result.shots[+b.dataset.i]||{})[b.dataset.k]||"";navigator.clipboard.writeText(t).then(function(){' +
+'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});' +
+'document.querySelectorAll("button[data-copyval]").forEach(function(b){b.addEventListener("click",function(){' +
+'var t=decodeURIComponent(b.dataset.copyval);navigator.clipboard.writeText(t).then(function(){' +
 'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});</scr' + 'ipt>' +
 '</div></body></html>';
 
