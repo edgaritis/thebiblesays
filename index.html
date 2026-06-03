@@ -5,6 +5,14 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.2.0
+    - Fixed Translate / Summarize toggles: the switch knob is now
+      clickable (was only the text label before).
+    - Super-prompt box is height-capped with its own scroll; Copy
+      still copies the full text.
+    - Steps 2 & 3 auto-collapse after a successful Parse (click a
+      header to expand/collapse); reclaims vertical space.
+    - Added a floating "Jump to shots / Top" button once shots exist.
   v1.1.1
     - Moved "Import backup" out from under the narration box into
       the Projects panel, next to Save / Load (it restores a
@@ -163,6 +171,14 @@
     background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13.5px;font-weight:500;
     opacity:0;pointer-events:none;transition:.25s}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
+  .sec-head .chev{font-size:20px;line-height:1;color:var(--ink-soft);transition:transform .18s;flex:0 0 auto}
+  .sec-body{margin-top:16px}
+  .collapsed .sec-body{display:none}
+  .collapsed .chev{transform:rotate(-90deg)}
+  #superPrompt{max-height:300px;overflow:auto}
+  #jumpFab{position:fixed;right:18px;bottom:24px;z-index:50;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:999px;padding:10px 16px;font-family:var(--body);font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:opacity .15s}
+  #jumpFab:hover{opacity:.9}
   .hidden{display:none!important}
 </style>
 </head>
@@ -188,7 +204,7 @@
     <div class="grid">
       <div>
         <div class="toggle-row">
-          <span class="switch"><input type="checkbox" id="translate"><span class="slider"></span></span>
+          <label class="switch"><input type="checkbox" id="translate"><span class="slider"></span></label>
           <label for="translate">Translate</label>
         </div>
         <input type="text" id="targetLang" value="English" />
@@ -197,7 +213,7 @@
 
       <div>
         <div class="toggle-row">
-          <span class="switch"><input type="checkbox" id="summarize"><span class="slider"></span></span>
+          <label class="switch"><input type="checkbox" id="summarize"><span class="slider"></span></label>
           <label for="summarize">Summarize</label>
         </div>
         <div class="hint" style="margin-top:11px">Makes a self-contained short version — a complete piece, not a teaser for a longer video.</div>
@@ -265,32 +281,46 @@
   </section>
 
   <!-- STEP 2: SUPER-PROMPT -->
-  <section id="promptSection" class="hidden">
-    <p class="step-tag">Step 2 — Run it in your AI chat</p>
-    <h2>Super-prompt</h2>
-    <div class="instruct">
-      <ol>
-        <li>Copy the text below.</li>
-        <li>Paste it into your own ChatGPT / Claude / Gemini chat and send.</li>
-        <li>Copy the reply, paste it into Step 3, and press Parse.</li>
-      </ol>
+  <section id="promptSection" class="hidden collapsible">
+    <div class="sec-head">
+      <div>
+        <p class="step-tag" style="margin-bottom:2px">Step 2 — Run it in your AI chat</p>
+        <h2 style="margin:0">Super-prompt</h2>
+      </div>
+      <span class="chev">▾</span>
     </div>
-    <div class="code" id="superPrompt"></div>
-    <div class="btn-row">
-      <button id="copyPromptBtn">Copy super-prompt</button>
+    <div class="sec-body">
+      <div class="instruct">
+        <ol>
+          <li>Copy the text below.</li>
+          <li>Paste it into your own ChatGPT / Claude / Gemini chat and send.</li>
+          <li>Copy the reply, paste it into Step 3, and press Parse.</li>
+        </ol>
+      </div>
+      <div class="code" id="superPrompt"></div>
+      <div class="btn-row">
+        <button id="copyPromptBtn">Copy super-prompt</button>
+      </div>
     </div>
   </section>
 
   <!-- STEP 3: PASTE BACK -->
-  <section id="parseSection" class="hidden">
-    <p class="step-tag">Step 3 — Paste the result</p>
-    <h2>Model output</h2>
-    <label for="rawResult">Paste the AI's reply here</label>
-    <textarea id="rawResult" placeholder="Paste the JSON reply from your AI chat…" style="min-height:120px;font-family:var(--mono);font-size:13px"></textarea>
-    <div class="btn-row">
-      <button class="accent" id="parseBtn">Parse →</button>
+  <section id="parseSection" class="hidden collapsible">
+    <div class="sec-head">
+      <div>
+        <p class="step-tag" style="margin-bottom:2px">Step 3 — Paste the result</p>
+        <h2 style="margin:0">Model output</h2>
+      </div>
+      <span class="chev">▾</span>
     </div>
-    <div id="parseMsg" class="msg"></div>
+    <div class="sec-body">
+      <label for="rawResult">Paste the AI's reply here</label>
+      <textarea id="rawResult" placeholder="Paste the JSON reply from your AI chat…" style="min-height:120px;font-family:var(--mono);font-size:13px"></textarea>
+      <div class="btn-row">
+        <button class="accent" id="parseBtn">Parse →</button>
+      </div>
+      <div id="parseMsg" class="msg"></div>
+    </div>
   </section>
 
   <!-- STEP 4: RESULTS -->
@@ -339,9 +369,10 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.1.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.2.0</div>
   </footer>
 </div>
+<button id="jumpFab" class="hidden">↓ Jump to shots</button>
 <div id="toast"></div>
 
 <script>
@@ -492,6 +523,7 @@ $("buildBtn").addEventListener("click", () => {
   const script = validateInput();
   if (!script) return;
   $("superPrompt").textContent = buildSuperPrompt(script);
+  expandWorkflow();
   $("promptSection").classList.remove("hidden");
   $("parseSection").classList.remove("hidden");
   $("promptSection").scrollIntoView({behavior:"smooth", block:"start"});
@@ -528,6 +560,7 @@ $("parseBtn").addEventListener("click", () => {
   RESULT = data;
   renderResult(data);
   saveDraft();
+  collapseWorkflow();
   el.textContent = "Parsed " + data.shots.length + " shots.";
   el.classList.add("show","ok");
   $("resultSection").classList.remove("hidden");
@@ -579,6 +612,7 @@ function renderResult(d){
   host.querySelectorAll("button[data-copy]").forEach(b => {
     b.addEventListener("click", () => copy(RESULT.shots[+b.dataset.i][b.dataset.copy] || "", "Copied"));
   });
+  updateFab();
 }
 function promptField(label, key, i, val){
   return '<div class="pf"><div class="pf-label"><span>' + label + '</span>' +
@@ -636,6 +670,7 @@ function applyState(p, projName){
     $("promptSection").classList.remove("hidden");
     $("parseSection").classList.remove("hidden");
     $("resultSection").classList.remove("hidden");
+    collapseWorkflow();
   }
 }
 
@@ -686,9 +721,11 @@ $("newProjBtn").addEventListener("click", () => {
   $("rawResult").value = ""; $("projName").value = ""; $("projLoad").value = "";
   RESULT = null;
   ["promptSection","parseSection","resultSection"].forEach(id => $(id).classList.add("hidden"));
+  expandWorkflow();
   ["inputMsg","parseMsg"].forEach(id => { $(id).className = "msg"; $(id).textContent = ""; });
   localStorage.removeItem(DKEY);
   updateStats();
+  updateFab();
   window.scrollTo({ top:0, behavior:"smooth" });
   toast("New project — ready");
 });
@@ -807,6 +844,28 @@ function importText(text, filename){
   toast("Backup imported");
   if (RESULT) $("resultSection").scrollIntoView({ behavior:"smooth", block:"start" });
 }
+
+/* ---------- collapsible sections + floating nav ---------- */
+function expandWorkflow(){ ["promptSection","parseSection"].forEach(id => $(id).classList.remove("collapsed")); }
+function collapseWorkflow(){ ["promptSection","parseSection"].forEach(id => $(id).classList.add("collapsed")); }
+document.querySelectorAll(".sec-head").forEach(h =>
+  h.addEventListener("click", () => h.closest("section").classList.toggle("collapsed"))
+);
+
+const fab = $("jumpFab");
+function updateFab(){
+  if (!RESULT || $("resultSection").classList.contains("hidden")){ fab.classList.add("hidden"); return; }
+  fab.classList.remove("hidden");
+  const top = $("resultSection").getBoundingClientRect().top;
+  if (top > 140){ fab.dataset.mode = "down"; fab.textContent = "↓ Jump to shots"; }
+  else { fab.dataset.mode = "up"; fab.textContent = "↑ Top"; }
+}
+fab.addEventListener("click", () => {
+  if (fab.dataset.mode === "up") window.scrollTo({ top:0, behavior:"smooth" });
+  else $("resultSection").scrollIntoView({ behavior:"smooth", block:"start" });
+});
+window.addEventListener("scroll", updateFab, { passive:true });
+window.addEventListener("resize", updateFab);
 
 /* ---------- init ---------- */
 refreshProjectList();
