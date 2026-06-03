@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Script → Shot Prompts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBFAF6;
+    --paper-2:#F4F2EB;
+    --ink:#1C1A17;
+    --ink-soft:#5A554C;
+    --line:#E2DDD1;
+    --line-strong:#CFC8B8;
+    --accent:#B4521E;
+    --accent-soft:#F1E2D7;
+    --ok:#3F6B47;
+    --err:#9B2C2C;
+    --radius:14px;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --body:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:16px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 96px}
+  header.masthead{margin-bottom:8px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  h1{font-family:var(--display);font-weight:500;font-size:clamp(30px,6vw,48px);line-height:1.04;margin:0 0 10px;letter-spacing:-.01em}
+  .lede{color:var(--ink-soft);max-width:62ch;margin:0 0 28px;font-size:15.5px}
+  .lede b{color:var(--ink);font-weight:600}
+
+  section{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    margin:0 0 18px;
+  }
+  .step-tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  h2{font-family:var(--display);font-weight:500;font-size:22px;margin:6px 0 16px;letter-spacing:-.01em}
+
+  label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:0 0 6px}
+  .hint{font-size:12.5px;color:var(--ink-soft);font-weight:400;margin-top:4px}
+
+  textarea,input,select{
+    width:100%;font-family:var(--body);font-size:15px;color:var(--ink);
+    background:var(--paper);border:1px solid var(--line-strong);border-radius:10px;
+    padding:11px 12px;outline:none;transition:border-color .15s,box-shadow .15s;
+  }
+  textarea{resize:vertical;line-height:1.45}
+  textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  #script{min-height:150px;font-family:var(--mono);font-size:14px}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 18px;margin-top:4px}
+  .grid .full{grid-column:1/-1}
+  @media (max-width:560px){.grid{grid-template-columns:1fr}}
+
+  .toggle-row{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+  .toggle-row label{margin:0}
+  .switch{position:relative;display:inline-block;width:42px;height:24px;flex:0 0 auto}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:var(--line-strong);border-radius:999px;transition:.18s;cursor:pointer}
+  .slider::before{content:"";position:absolute;height:18px;width:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.18s}
+  .switch input:checked + .slider{background:var(--accent)}
+  .switch input:checked + .slider::before{transform:translateX(18px)}
+
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 4px}
+  .stat{flex:1 1 120px;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat .n{font-family:var(--display);font-size:24px;font-weight:500;line-height:1}
+  .stat .l{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+  .stat.editable input{margin-top:6px;padding:6px 8px;font-family:var(--display);font-size:20px;text-align:left;background:#fff}
+
+  button{
+    font-family:var(--body);font-weight:600;font-size:14.5px;cursor:pointer;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    border-radius:999px;padding:11px 20px;transition:transform .08s,opacity .15s;
+  }
+  button:hover{opacity:.9}
+  button:active{transform:translateY(1px)}
+  button.ghost{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+  button.accent{background:var(--accent);border-color:var(--accent)}
+  button.tiny{padding:5px 11px;font-size:12px;font-weight:500}
+  .btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+
+  .code{
+    width:100%;font-family:var(--mono);font-size:13px;line-height:1.5;
+    background:#23211D;color:#EDE8DD;border:none;border-radius:10px;padding:16px;
+    min-height:120px;white-space:pre-wrap;word-break:break-word;
+  }
+  .instruct{font-size:13.5px;color:var(--ink-soft);background:var(--paper-2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 8px 8px 0;margin:0 0 14px}
+  .instruct ol{margin:6px 0 0;padding-left:20px}
+  .instruct li{margin:3px 0}
+
+  .msg{font-size:13.5px;padding:9px 13px;border-radius:9px;margin-top:10px;display:none}
+  .msg.show{display:block}
+  .msg.warn{background:#FBF3E2;color:#7A5A12;border:1px solid #ECD9A8}
+  .msg.error{background:#FBEDED;color:var(--err);border:1px solid #E9CACA}
+  .msg.ok{background:#EAF2EB;color:var(--ok);border:1px solid #CADBCC}
+
+  .bible{background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 16px;font-size:14px}
+  .bible h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px;font-weight:500}
+  .bible p{margin:4px 0}
+  .bible b{font-weight:600}
+
+  .shot{border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 0 14px;background:#fff}
+  .shot-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .shot-no{font-family:var(--display);font-size:18px;font-weight:600}
+  .shot-tc{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
+  .shot-narr{font-size:14px;color:var(--ink-soft);font-style:italic;margin:0 0 12px;padding-left:11px;border-left:2px solid var(--line-strong)}
+  .pf{margin:0 0 12px}
+  .pf:last-child{margin-bottom:0}
+  .pf-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .pf-label span{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+  .pf textarea{min-height:64px;font-size:14px}
+
+  .divider{height:1px;background:var(--line);border:0;margin:22px 0}
+  .row-spread{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+  .save-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .save-row .grow{flex:1 1 160px}
+  footer{margin-top:36px;text-align:center;font-size:12.5px;color:var(--ink-soft)}
+  footer code{font-family:var(--mono);background:var(--paper-2);padding:2px 6px;border-radius:5px}
+
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13.5px;font-weight:500;
+    opacity:0;pointer-events:none;transition:.25s}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <p class="kicker" style="margin-bottom:0">Narration → AI Video</p>
+      <button class="ghost tiny" id="newProjBtn" title="Clear everything and start over">＋ New project</button>
+    </div>
+    <h1 style="margin-top:14px">Script to Shot Prompts</h1>
+    <p class="lede">Paste a narration script and this builds a tidy <b>super-prompt</b> for your own AI chat. Run it there, paste the result back, and get an editable, exportable shot list of <b>image</b> and <b>video</b> prompts — consistent across shots. No keys, no API, no cost.</p>
+  </header>
+
+  <!-- STEP 1: INPUT -->
+  <section>
+    <p class="step-tag">Step 1 — Script &amp; settings</p>
+    <h2>Your narration</h2>
+    <label for="script">Script (any language)</label>
+    <textarea id="script" placeholder="Paste your voiceover / narration script here…"></textarea>
+    <div id="inputMsg" class="msg"></div>
+
+    <div class="btn-row" style="margin:2px 0 18px">
+      <button class="ghost tiny" id="importBtn">⤒ Import backup (HTML / JSON)</button>
+      <input type="file" id="importFile" accept=".html,.htm,.json,application/json,text/html" class="hidden">
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="toggle-row">
+          <span class="switch"><input type="checkbox" id="translate"><span class="slider"></span></span>
+          <label for="translate">Translate</label>
+        </div>
+        <input type="text" id="targetLang" value="English" />
+        <div class="hint">Target language (only if Translate is on).</div>
+      </div>
+
+      <div>
+        <div class="toggle-row">
+          <span class="switch"><input type="checkbox" id="summarize"><span class="slider"></span></span>
+          <label for="summarize">Summarize</label>
+        </div>
+        <div class="hint" style="margin-top:11px">Makes a self-contained short version — a complete piece, not a teaser for a longer video.</div>
+      </div>
+
+      <div>
+        <label for="style">Visual style</label>
+        <select id="style">
+          <option>Cinematic</option>
+          <option>Photorealistic</option>
+          <option>Anime</option>
+          <option>3D animated (Pixar-like)</option>
+          <option>Watercolor illustration</option>
+          <option>Documentary</option>
+          <option>Film noir</option>
+          <option>Cyberpunk</option>
+          <option>Vintage film</option>
+          <option>Minimalist / clean</option>
+          <option value="__custom">Custom…</option>
+        </select>
+        <input type="text" id="styleCustom" class="hidden" style="margin-top:8px" placeholder="Describe your style…" />
+      </div>
+
+      <div>
+        <label for="tool">Target video generator</label>
+        <select id="tool">
+          <option>Veo</option>
+          <option>Kling</option>
+          <option>Grok</option>
+          <option>Generic (any tool)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="mode">Prompt mode</label>
+        <select id="mode">
+          <option value="i2v">Image-to-video (keyframe, then animate)</option>
+          <option value="t2v">Text-to-video (self-contained clip)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="wpm">Speaking rate (words / min)</label>
+        <input type="number" id="wpm" value="140" min="40" max="400" />
+        <div class="hint" id="cjkNote"></div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n" id="statWords">0</div><div class="l">Words</div></div>
+      <div class="stat"><div class="n" id="statDur">0:00</div><div class="l">Est. duration</div></div>
+      <div class="stat editable">
+        <div class="l" style="margin-top:0">Clip length (s)</div>
+        <input type="number" id="clipLen" value="4" min="1" max="30" />
+      </div>
+      <div class="stat editable">
+        <div class="l" style="margin-top:0">Shots (editable)</div>
+        <input type="number" id="shotCount" value="0" min="1" max="300" />
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="accent" id="buildBtn">Build super-prompt →</button>
+    </div>
+  </section>
+
+  <!-- STEP 2: SUPER-PROMPT -->
+  <section id="promptSection" class="hidden">
+    <p class="step-tag">Step 2 — Run it in your AI chat</p>
+    <h2>Super-prompt</h2>
+    <div class="instruct">
+      <ol>
+        <li>Copy the text below.</li>
+        <li>Paste it into your own ChatGPT / Claude / Gemini chat and send.</li>
+        <li>Copy the reply, paste it into Step 3, and press Parse.</li>
+      </ol>
+    </div>
+    <div class="code" id="superPrompt"></div>
+    <div class="btn-row">
+      <button id="copyPromptBtn">Copy super-prompt</button>
+    </div>
+  </section>
+
+  <!-- STEP 3: PASTE BACK -->
+  <section id="parseSection" class="hidden">
+    <p class="step-tag">Step 3 — Paste the result</p>
+    <h2>Model output</h2>
+    <label for="rawResult">Paste the AI's reply here</label>
+    <textarea id="rawResult" placeholder="Paste the JSON reply from your AI chat…" style="min-height:120px;font-family:var(--mono);font-size:13px"></textarea>
+    <div class="btn-row">
+      <button class="accent" id="parseBtn">Parse →</button>
+    </div>
+    <div id="parseMsg" class="msg"></div>
+  </section>
+
+  <!-- STEP 4: RESULTS -->
+  <section id="resultSection" class="hidden">
+    <p class="step-tag">Step 4 — Your shot list</p>
+    <h2 id="resultTitle">Shots</h2>
+    <div id="transBox" class="bible hidden"></div>
+    <div id="bibleBox" class="bible hidden"></div>
+    <div id="shots"></div>
+    <hr class="divider" />
+    <div class="row-spread">
+      <div class="btn-row" style="margin:0">
+        <button class="accent" id="exportHtml">⤓ Download backup (HTML)</button>
+        <button class="ghost" id="exportCsv">Export CSV</button>
+        <button class="ghost" id="exportJson">Export JSON</button>
+      </div>
+    </div>
+    <hr class="divider" />
+    <p class="step-tag">Save / load this project (stays on your device)</p>
+    <div class="save-row" style="margin-top:10px">
+      <div class="grow">
+        <label for="projName">Project name</label>
+        <input type="text" id="projName" placeholder="My project" />
+      </div>
+      <button id="saveProj">Save</button>
+    </div>
+    <div class="save-row" style="margin-top:12px">
+      <div class="grow">
+        <label for="projLoad">Saved projects</label>
+        <select id="projLoad"><option value="">— select —</option></select>
+      </div>
+      <button class="ghost" id="loadProj">Load</button>
+      <button class="ghost" id="delProj">Delete</button>
+    </div>
+  </section>
+
+  <footer>
+    Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
+  </footer>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const MAX_CHARS = 12000;       // warn-and-cap threshold
+const MIN_CHARS = 25;
+const CJK_CPM = 240;           // chars/min fallback for CJK narration
+
+let RESULT = null;             // parsed model output
+
+/* ---------- stats ---------- */
+function countCJK(s){ const m = s.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/g); return m ? m.length : 0; }
+function wordCount(s){ const t = s.trim(); return t ? t.split(/\s+/).length : 0; }
+
+function updateStats(){
+  const s = $("script").value;
+  const words = wordCount(s);
+  const cjk = countCJK(s);
+  const wpm = Math.max(1, parseFloat($("wpm").value) || 140);
+  const clip = Math.max(1, parseFloat($("clipLen").value) || 4);
+
+  let seconds, note = "";
+  if (cjk > 20 && cjk >= words){
+    seconds = (cjk / CJK_CPM) * 60;
+    note = "CJK text detected — estimating by characters (≈" + CJK_CPM + "/min).";
+  } else {
+    seconds = (words / wpm) * 60;
+  }
+  $("cjkNote").textContent = note;
+
+  $("statWords").textContent = words;
+  const mm = Math.floor(seconds/60), ss = Math.round(seconds%60);
+  $("statDur").textContent = words ? (mm + ":" + String(ss).padStart(2,"0")) : "0:00";
+
+  const suggested = Math.max(1, Math.ceil(seconds/clip));
+  const sc = $("shotCount");
+  if (!sc.dataset.touched || sc.value === "0" || !words) sc.value = words ? suggested : 0;
+}
+["script","wpm","clipLen"].forEach(id => $(id).addEventListener("input", updateStats));
+$("shotCount").addEventListener("input", () => { $("shotCount").dataset.touched = "1"; });
+
+/* ---------- style custom toggle ---------- */
+$("style").addEventListener("change", () => {
+  $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
+});
+function currentStyle(){
+  return $("style").value === "__custom" ? ($("styleCustom").value.trim() || "Cinematic") : $("style").value;
+}
+
+/* ---------- validation ---------- */
+function validateInput(){
+  const el = $("inputMsg"); el.className = "msg";
+  let s = $("script").value.trim();
+  if (s.length < MIN_CHARS){ el.textContent = "Script looks too short to plan shots from — paste a fuller narration."; el.classList.add("show","error"); return null; }
+  let capped = false;
+  if (s.length > MAX_CHARS){ s = s.slice(0, MAX_CHARS); capped = true; }
+  if (capped){ el.textContent = "Long script: trimmed to " + MAX_CHARS.toLocaleString() + " characters for one clean round-trip. For more, split it into parts."; el.classList.add("show","warn"); }
+  else { el.className = "msg"; }
+  return s;
+}
+
+/* ---------- super-prompt ---------- */
+const SCHEMA = `{
+  "detected_language": "string",
+  "translated_script": "string or null",
+  "summary": "string or null",
+  "consistency_bible": {
+    "subjects": ["fixed visual descriptors for each recurring subject/character"],
+    "setting": "string",
+    "palette": "string",
+    "tone": "string"
+  },
+  "shots": [
+    {
+      "n": 1,
+      "timecode": "0:00-0:04",
+      "narration": "the narration line for this shot",
+      "image_prompt": "string",
+      "video_prompt": "string"
+    }
+  ]
+}`;
+
+function modeRules(mode, clip){
+  if (mode === "i2v"){
+    return `image_prompt = a complete keyframe description (subject, setting, composition, lighting, mood, style). `
+         + `video_prompt = ONLY the camera movement and subject motion that animates that keyframe over ~${clip}s — do NOT re-describe the whole scene.`;
+  }
+  return `video_prompt = a self-contained clip description (scene, subject, action, camera, lighting, style) for ~${clip}s. `
+       + `image_prompt = an optional single keyframe still of the same shot.`;
+}
+
+function buildSuperPrompt(script){
+  const translate = $("translate").checked;
+  const summarize = $("summarize").checked;
+  const lang = $("targetLang").value.trim() || "English";
+  const style = currentStyle();
+  const tool = $("tool").value;
+  const mode = $("mode").value;
+  const clip = Math.max(1, parseFloat($("clipLen").value) || 4);
+  const shots = Math.max(1, parseInt($("shotCount").value) || 1);
+
+  const transLine = translate
+    ? `Translate the script into ${lang}, then base everything below on the translated text. Put the translation in "translated_script".`
+    : `Do not translate; keep the original language. Set "translated_script" to null.`;
+  const sumLine = summarize
+    ? `Produce a SELF-CONTAINED short version — a complete standalone piece, NOT a teaser or invitation to watch a longer video — then base the shots on that short version. Put it in "summary".`
+    : `Use the full script. Set "summary" to null.`;
+
+  return (
+`You are an expert at turning a voiceover / narration script into a shot-by-shot plan of AI image and video generation prompts.
+
+SCRIPT (between the ===== lines):
+=====
+${script}
+=====
+
+SETTINGS
+- Source language: detect it automatically and report it in "detected_language".
+- Translation: ${transLine}
+- Version: ${sumLine}
+- Visual style (apply to EVERY shot): ${style}
+- Target video generator: ${tool} — phrase prompts in natural language suited to it.
+- Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}
+- Target number of shots: about ${shots}. Each shot ≈ ${clip}s.
+
+CONSISTENCY BIBLE (do this first)
+- Identify the recurring subjects/characters and give each FIXED visual descriptors (look, wardrobe, age, etc.).
+- Note the setting, the colour palette, and the tone.
+- Every shot below MUST stay consistent with this bible and the chosen style, so the shots read as one cohesive video.
+
+SHOT RULES
+- Split the narration into about ${shots} shots, aligned to sentence/clause boundaries so each shot maps to a coherent line of narration.
+- Give each shot a timecode range assuming ~${clip}s per shot (e.g. 0:00-0:0${clip < 10 ? clip : clip}).
+- ${modeRules(mode, clip)}
+- Keep the chosen visual style explicit in the image prompts.
+
+OUTPUT FORMAT — CRITICAL
+- Respond with STRICT, VALID JSON ONLY.
+- No explanation, no markdown, no code fences, nothing before or after the JSON.
+- Use EXACTLY this schema:
+${SCHEMA}`
+  );
+}
+
+$("buildBtn").addEventListener("click", () => {
+  const script = validateInput();
+  if (!script) return;
+  $("superPrompt").textContent = buildSuperPrompt(script);
+  $("promptSection").classList.remove("hidden");
+  $("parseSection").classList.remove("hidden");
+  $("promptSection").scrollIntoView({behavior:"smooth", block:"start"});
+});
+
+$("copyPromptBtn").addEventListener("click", () => copy($("superPrompt").textContent, "Super-prompt copied"));
+
+/* ---------- tolerant parse ---------- */
+function extractJSON(raw){
+  let t = raw.trim();
+  t = t.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();   // strip fences
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a === -1 || b === -1 || b < a) throw new Error("No JSON object found in the text.");
+  return JSON.parse(t.slice(a, b+1));
+}
+
+const REPAIR = `Your previous reply could not be parsed. Reply AGAIN with STRICT, VALID JSON ONLY — no markdown, no code fences, no text before or after — using the exact schema I gave you.`;
+
+$("parseBtn").addEventListener("click", () => {
+  const el = $("parseMsg"); el.className = "msg";
+  const raw = $("rawResult").value;
+  if (!raw.trim()){ el.textContent = "Paste the AI's reply first."; el.classList.add("show","error"); return; }
+  let data;
+  try { data = extractJSON(raw); }
+  catch(e){
+    el.innerHTML = "Couldn't read that as JSON (" + escapeHTML(e.message) + "). Paste this back into your chat and try again:<br><br><span style='font-family:var(--mono);font-size:12.5px'>" + escapeHTML(REPAIR) + "</span>";
+    el.classList.add("show","error");
+    return;
+  }
+  if (!data.shots || !Array.isArray(data.shots) || !data.shots.length){
+    el.textContent = "The JSON parsed, but it has no \"shots\" array. Ask the model to follow the schema exactly.";
+    el.classList.add("show","error"); return;
+  }
+  RESULT = data;
+  renderResult(data);
+  saveDraft();
+  el.textContent = "Parsed " + data.shots.length + " shots.";
+  el.classList.add("show","ok");
+  $("resultSection").classList.remove("hidden");
+  $("resultSection").scrollIntoView({behavior:"smooth", block:"start"});
+});
+
+/* ---------- render ---------- */
+function escapeHTML(s){ return String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function renderResult(d){
+  const lang = d.detected_language ? (" · detected " + d.detected_language) : "";
+  $("resultTitle").textContent = d.shots.length + " shots" + lang;
+
+  // translation / summary
+  const tb = $("transBox");
+  const parts = [];
+  if (d.translated_script) parts.push("<h3>Translation</h3><p>" + escapeHTML(d.translated_script) + "</p>");
+  if (d.summary) parts.push("<h3>Short version</h3><p>" + escapeHTML(d.summary) + "</p>");
+  if (parts.length){ tb.innerHTML = parts.join("<br>"); tb.classList.remove("hidden"); } else tb.classList.add("hidden");
+
+  // bible
+  const bb = $("bibleBox"), cb = d.consistency_bible || {};
+  const bp = [];
+  if (cb.subjects && cb.subjects.length) bp.push("<p><b>Subjects:</b> " + escapeHTML([].concat(cb.subjects).join("; ")) + "</p>");
+  if (cb.setting) bp.push("<p><b>Setting:</b> " + escapeHTML(cb.setting) + "</p>");
+  if (cb.palette) bp.push("<p><b>Palette:</b> " + escapeHTML(cb.palette) + "</p>");
+  if (cb.tone) bp.push("<p><b>Tone:</b> " + escapeHTML(cb.tone) + "</p>");
+  if (bp.length){ bb.innerHTML = "<h3>Consistency bible</h3>" + bp.join(""); bb.classList.remove("hidden"); } else bb.classList.add("hidden");
+
+  // shots
+  const host = $("shots"); host.innerHTML = "";
+  d.shots.forEach((sh, i) => {
+    const card = document.createElement("div");
+    card.className = "shot";
+    card.innerHTML =
+      '<div class="shot-head"><span class="shot-no">Shot ' + (sh.n ?? i+1) + '</span>' +
+      '<span class="shot-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
+      (sh.narration ? '<p class="shot-narr">' + escapeHTML(sh.narration) + '</p>' : '') +
+      promptField("Image prompt", "image_prompt", i, sh.image_prompt) +
+      promptField("Video prompt", "video_prompt", i, sh.video_prompt);
+    host.appendChild(card);
+  });
+
+  // wire textareas + copy
+  host.querySelectorAll("textarea[data-i]").forEach(ta => {
+    autoGrow(ta);
+    ta.addEventListener("input", () => { RESULT.shots[+ta.dataset.i][ta.dataset.k] = ta.value; autoGrow(ta); });
+  });
+  host.querySelectorAll("button[data-copy]").forEach(b => {
+    b.addEventListener("click", () => copy(RESULT.shots[+b.dataset.i][b.dataset.copy] || "", "Copied"));
+  });
+}
+function promptField(label, key, i, val){
+  return '<div class="pf"><div class="pf-label"><span>' + label + '</span>' +
+         '<button class="ghost tiny" data-copy="' + key + '" data-i="' + i + '">Copy</button></div>' +
+         '<textarea data-i="' + i + '" data-k="' + key + '">' + escapeHTML(val || "") + '</textarea></div>';
+}
+function autoGrow(ta){ ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
+
+/* ---------- export ---------- */
+function csvCell(v){ return '"' + String(v==null?"":v).replace(/"/g,'""') + '"'; }
+$("exportCsv").addEventListener("click", () => {
+  if (!RESULT) return;
+  const rows = [["n","timecode","narration","image_prompt","video_prompt"]];
+  RESULT.shots.forEach((s,i) => rows.push([s.n ?? i+1, s.timecode||"", s.narration||"", s.image_prompt||"", s.video_prompt||""]));
+  const csv = rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+  download(csv, "shot-prompts.csv", "text/csv");
+});
+$("exportJson").addEventListener("click", () => {
+  if (!RESULT) return;
+  download(JSON.stringify(RESULT, null, 2), "shot-prompts.json", "application/json");
+});
+function download(text, name, type){
+  const blob = new Blob([text], {type}), url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url); toast("Downloaded " + name);
+}
+
+/* ---------- shared state ---------- */
+function currentState(){
+  return {
+    script: $("script").value,
+    settings: {
+      translate:$("translate").checked, summarize:$("summarize").checked, targetLang:$("targetLang").value,
+      style:$("style").value, styleCustom:$("styleCustom").value, tool:$("tool").value, mode:$("mode").value,
+      wpm:$("wpm").value, clipLen:$("clipLen").value, shotCount:$("shotCount").value
+    },
+    result: RESULT
+  };
+}
+function applyState(p, projName){
+  $("script").value = p.script || "";
+  const s = p.settings || {};
+  $("translate").checked = !!s.translate; $("summarize").checked = !!s.summarize;
+  $("targetLang").value = s.targetLang || "English";
+  $("style").value = s.style || "Cinematic"; $("styleCustom").value = s.styleCustom || "";
+  $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
+  $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
+  $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 4;
+  $("shotCount").value = s.shotCount || 0; if (s.shotCount) $("shotCount").dataset.touched = "1";
+  if (projName != null) $("projName").value = projName;
+  updateStats();
+  RESULT = p.result || null;
+  if (RESULT){
+    renderResult(RESULT);
+    $("promptSection").classList.remove("hidden");
+    $("parseSection").classList.remove("hidden");
+    $("resultSection").classList.remove("hidden");
+  }
+}
+
+/* ---------- saved projects (localStorage) ---------- */
+const PKEY = "svp_projects_v1";
+function getProjects(){ try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch(e){ return {}; } }
+function setProjects(o){ localStorage.setItem(PKEY, JSON.stringify(o)); }
+function refreshProjectList(){
+  const sel = $("projLoad"), names = Object.keys(getProjects());
+  sel.innerHTML = '<option value="">— select —</option>' + names.map(n => '<option>' + escapeHTML(n) + '</option>').join("");
+}
+$("saveProj").addEventListener("click", () => {
+  const name = $("projName").value.trim();
+  if (!name){ toast("Name the project first"); return; }
+  const all = getProjects(); all[name] = currentState();
+  setProjects(all); refreshProjectList(); toast("Saved “" + name + "”");
+});
+$("loadProj").addEventListener("click", () => {
+  const name = $("projLoad").value; if (!name) return;
+  const p = getProjects()[name]; if (!p) return;
+  applyState(p, name); saveDraft(); toast("Loaded “" + name + "”");
+});
+$("delProj").addEventListener("click", () => {
+  const name = $("projLoad").value; if (!name) return;
+  const all = getProjects(); delete all[name]; setProjects(all); refreshProjectList(); toast("Deleted “" + name + "”");
+});
+
+/* ---------- working draft: auto-save so closing the browser doesn't lose work ---------- */
+const DKEY = "svp_draft_v1";
+function saveDraft(){ try { localStorage.setItem(DKEY, JSON.stringify(currentState())); } catch(e){} }
+let draftT; function saveDraftSoon(){ clearTimeout(draftT); draftT = setTimeout(saveDraft, 400); }
+function restoreDraft(){
+  let p = null; try { p = JSON.parse(localStorage.getItem(DKEY)); } catch(e){}
+  if (p && (p.script || p.result)){ applyState(p, null); }
+  else { updateStats(); }
+}
+document.addEventListener("input", saveDraftSoon);
+document.addEventListener("change", saveDraftSoon);
+
+/* ---------- new project ---------- */
+$("newProjBtn").addEventListener("click", () => {
+  if (!confirm("Start a new project? This clears the current script and result.\n(Your saved projects and any downloaded backups are kept.)")) return;
+  $("script").value = "";
+  $("translate").checked = false; $("summarize").checked = false; $("targetLang").value = "English";
+  $("style").value = "Cinematic"; $("styleCustom").value = ""; $("styleCustom").classList.add("hidden");
+  $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 4;
+  $("shotCount").value = 0; delete $("shotCount").dataset.touched;
+  $("rawResult").value = ""; $("projName").value = ""; $("projLoad").value = "";
+  RESULT = null;
+  ["promptSection","parseSection","resultSection"].forEach(id => $(id).classList.add("hidden"));
+  ["inputMsg","parseMsg"].forEach(id => { $(id).className = "msg"; $(id).textContent = ""; });
+  localStorage.removeItem(DKEY);
+  updateStats();
+  window.scrollTo({ top:0, behavior:"smooth" });
+  toast("New project — ready");
+});
+
+/* ---------- single-file HTML backup ---------- */
+function slugify(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40) || "project"; }
+$("exportHtml").addEventListener("click", () => {
+  if (!RESULT){ toast("Nothing to back up yet"); return; }
+  const st = currentState(), s = st.settings;
+  const name = $("projName").value.trim() || "Untitled project";
+  const when = new Date().toLocaleString();
+  const styleLabel = s.style === "__custom" ? (s.styleCustom || "Custom") : s.style;
+  const meta = [styleLabel, s.tool, (s.mode === "i2v" ? "Image-to-video" : "Text-to-video"),
+                "~" + s.clipLen + "s/shot", RESULT.shots.length + " shots"].join(" · ");
+
+  const cb = RESULT.consistency_bible || {}, bp = [];
+  if (cb.subjects && cb.subjects.length) bp.push("<p><b>Subjects:</b> " + escapeHTML([].concat(cb.subjects).join("; ")) + "</p>");
+  if (cb.setting) bp.push("<p><b>Setting:</b> " + escapeHTML(cb.setting) + "</p>");
+  if (cb.palette) bp.push("<p><b>Palette:</b> " + escapeHTML(cb.palette) + "</p>");
+  if (cb.tone) bp.push("<p><b>Tone:</b> " + escapeHTML(cb.tone) + "</p>");
+  const bibleHTML = bp.length ? '<div class="bx"><h3>Consistency bible</h3>' + bp.join("") + '</div>' : "";
+
+  const tp = [];
+  if (RESULT.translated_script) tp.push("<h3>Translation</h3><p>" + escapeHTML(RESULT.translated_script) + "</p>");
+  if (RESULT.summary) tp.push("<h3>Short version</h3><p>" + escapeHTML(RESULT.summary) + "</p>");
+  const transHTML = tp.length ? '<div class="bx">' + tp.join("") + '</div>' : "";
+
+  const shotsHTML = RESULT.shots.map((sh,i) =>
+    '<div class="shot"><div class="sh-head"><span class="sh-no">Shot ' + (sh.n ?? i+1) + '</span>' +
+    '<span class="sh-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
+    (sh.narration ? '<p class="sh-narr">' + escapeHTML(sh.narration) + '</p>' : '') +
+    '<div class="pf"><div class="pl"><span>Image prompt</span><button data-i="' + i + '" data-k="image_prompt">Copy</button></div><p class="pt">' + escapeHTML(sh.image_prompt || "") + '</p></div>' +
+    '<div class="pf"><div class="pl"><span>Video prompt</span><button data-i="' + i + '" data-k="video_prompt">Copy</button></div><p class="pt">' + escapeHTML(sh.video_prompt || "") + '</p></div>' +
+    '</div>'
+  ).join("");
+
+  const dataJSON = JSON.stringify(st).replace(/</g,"\\u003c").replace(/>/g,"\\u003e");
+
+  const doc =
+'<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
+'<meta name="viewport" content="width=device-width,initial-scale=1">' +
+'<title>' + escapeHTML(name) + ' — backup</title><style>' +
+'body{margin:0;background:#FBFAF6;color:#1C1A17;font-family:-apple-system,BlinkMacSystemFont,"Hanken Grotesk",sans-serif;line-height:1.5}' +
+'.w{max-width:840px;margin:0 auto;padding:36px 20px 80px}' +
+'h1{font-family:Georgia,serif;font-weight:600;font-size:30px;margin:0 0 6px}' +
+'.meta{color:#5A554C;font-size:13px;margin:0 0 26px}' +
+'.bx{background:#F4F2EB;border:1px solid #E2DDD1;border-radius:12px;padding:14px 18px;margin:0 0 16px;font-size:14px}' +
+'.bx h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5A554C;margin:0 0 8px}.bx p{margin:5px 0}' +
+'.shot{background:#fff;border:1px solid #E2DDD1;border-radius:12px;padding:16px;margin:0 0 14px}' +
+'.sh-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}' +
+'.sh-no{font-family:Georgia,serif;font-weight:600;font-size:17px}.sh-tc{font-family:monospace;font-size:12px;color:#B4521E}' +
+'.sh-narr{font-style:italic;color:#5A554C;font-size:14px;border-left:2px solid #CFC8B8;padding-left:11px;margin:0 0 12px}' +
+'.pf{margin:0 0 12px}.pf:last-child{margin:0}.pl{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}' +
+'.pl span{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5A554C}' +
+'.pt{margin:0;font-size:14px;background:#FBFAF6;border:1px solid #E2DDD1;border-radius:8px;padding:9px 11px;white-space:pre-wrap}' +
+'button{font:inherit;font-size:12px;cursor:pointer;border:1px solid #CFC8B8;background:#fff;border-radius:999px;padding:4px 12px}' +
+'button:hover{background:#F4F2EB}</style></head><body><div class="w">' +
+'<h1>' + escapeHTML(name) + '</h1><p class="meta">Backup · ' + escapeHTML(when) + ' · ' + escapeHTML(meta) + '</p>' +
+transHTML + bibleHTML + shotsHTML +
+'<scr' + 'ipt type="application/json" id="d">' + dataJSON + '</scr' + 'ipt>' +
+'<scr' + 'ipt>var D=JSON.parse(document.getElementById("d").textContent);' +
+'document.querySelectorAll("button[data-i]").forEach(function(b){b.addEventListener("click",function(){' +
+'var t=(D.result.shots[+b.dataset.i]||{})[b.dataset.k]||"";navigator.clipboard.writeText(t).then(function(){' +
+'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});</scr' + 'ipt>' +
+'</div></body></html>';
+
+  download(doc, slugify(name) + "-backup.html", "text/html");
+});
+
+/* ---------- utils ---------- */
+function copy(text, msg){
+  navigator.clipboard.writeText(text).then(() => toast(msg || "Copied")).catch(() => {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand("copy"); toast(msg||"Copied"); }catch(e){ toast("Copy failed"); }
+    document.body.removeChild(ta);
+  });
+}
+let toastT;
+function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800); }
+
+/* ---------- import backup (HTML or JSON) ---------- */
+$("importBtn").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { importText(String(reader.result || ""), file.name); $("importFile").value = ""; };
+  reader.onerror = () => { toast("Couldn't read that file"); $("importFile").value = ""; };
+  reader.readAsText(file);
+});
+function importText(text, filename){
+  let obj = null;
+  const isHTML = /\.html?$/i.test(filename) || /^\s*(<!doctype html|<html)/i.test(text);
+  try {
+    if (isHTML){
+      const m = text.match(/<script[^>]*id="d"[^>]*>([\s\S]*?)<\/script>/i);
+      if (!m){ toast("No backup data found in that HTML file"); return; }
+      obj = JSON.parse(m[1]);
+    } else {
+      obj = JSON.parse(text.trim().replace(/^```(?:json)?/i,"").replace(/```$/,"").trim());
+    }
+  } catch(err){ toast("That file isn't valid backup data"); return; }
+
+  let state;
+  if (obj && (obj.result || obj.settings || typeof obj.script === "string")){
+    state = obj;                                   // full project backup (HTML / full JSON)
+  } else if (obj && Array.isArray(obj.shots)){
+    state = { script:"", settings:{}, result:obj };// result-only JSON export
+  } else {
+    toast("That file isn't a recognizable backup"); return;
+  }
+  const baseName = filename.replace(/\.[^.]+$/,"").replace(/-backup$/i,"");
+  applyState(state, baseName);
+  saveDraft();
+  refreshProjectList();
+  toast("Backup imported");
+  if (RESULT) $("resultSection").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+/* ---------- init ---------- */
+refreshProjectList();
+restoreDraft();
+</script>
+</body>
+</html>
