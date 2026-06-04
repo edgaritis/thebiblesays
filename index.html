@@ -5,6 +5,12 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.9.2
+    - i2v anchor: in Image-to-video mode, each video prompt now begins
+      with "Start from attached image as the first frame." so the clip
+      animates the shot's keyframe (carrying character/look consistency)
+      instead of generating fresh. Flows into per-shot copy and the
+      Agent Brief. Not added in text-to-video mode (no keyframe).
   v1.9.1
     - Boundary-first segmentation: the script is now cut at natural
       boundaries (sentence -> clause -> clean word for run-ons) FIRST,
@@ -548,7 +554,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.9.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.9.2</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -563,7 +569,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.9.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.9.2";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -943,10 +949,15 @@ $("parseBtn").addEventListener("click", () => {
   }
 
   RESULT = data;
-  // append filename instruction so the generator agent names the output by shot number
+  // append filename instruction to images; in i2v, anchor each video to its keyframe
+  const isI2V = $("mode").value === "i2v";
   RESULT.shots.forEach(sh => {
     const p = (sh.image_prompt || "").trimEnd();
     if (p) sh.image_prompt = p + ' make the file name "' + (sh.n ?? "") + '".';
+    if (isI2V){
+      const v = (sh.video_prompt || "").trim();
+      if (v && !/^start from attached image/i.test(v)) sh.video_prompt = "Start from attached image as the first frame. " + v;
+    }
   });
   renderResult(data);
   saveDraft();
