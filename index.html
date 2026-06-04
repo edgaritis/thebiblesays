@@ -5,6 +5,10 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.6.1
+    - Each image prompt now ends with 'make the file name "N"'
+      (where N is the shot number), so generator agents that
+      support it will auto-name the output file by shot.
   v1.6.0
     - Faithfulness rebuild (B2): when not translating/summarising, the
       APP splits the script into shots itself (verbatim, word-for-word)
@@ -443,7 +447,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.6.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.6.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -458,7 +462,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.6.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.6.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -750,6 +754,11 @@ $("parseBtn").addEventListener("click", () => {
   }
 
   RESULT = data;
+  // append filename instruction so the generator agent names the output by shot number
+  RESULT.shots.forEach(sh => {
+    const p = (sh.image_prompt || "").trimEnd();
+    if (p) sh.image_prompt = p + ' make the file name "' + (sh.n ?? "") + '".';
+  });
   renderResult(data);
   saveDraft();
   collapseWorkflow();
