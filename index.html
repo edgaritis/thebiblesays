@@ -5,6 +5,17 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.5.0
+    - Shot segmentation rewritten around reading time: each shot is
+      filled with ~one clip-length of narration (short sentences
+      merged; over-long sentences split at natural phrase points),
+      and timecodes are derived from each shot's word count — so they
+      reflect real reading time instead of a fake uniform clip length.
+    - Each shot now shows a "Characters" line (named characters in
+      that shot, or "No character") — in the app, CSV, and backup.
+    - The downloaded HTML backup now matches the app: floating
+      quick-jump grid, and collapsible Hooks/descriptions + bible
+      (collapsed by default).
   v1.4.1
     - Summarize fix: when Summarize is on, the super-prompt now tells
       the model to set the shot count FROM the short version it writes
@@ -174,6 +185,7 @@
   .shot-tc{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
   .shot-narr{font-size:14px;color:var(--ink-soft);font-style:italic;margin:0 0 12px;padding-left:11px;border-left:2px solid var(--line-strong)}
   .narr-tag{display:block;font-style:normal;font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+  .shot-chars{font-size:13.5px;color:var(--ink);margin:0 0 12px;padding-left:11px;border-left:2px solid var(--accent-soft)}
   .pf{margin:0 0 12px}
   .pf:last-child{margin-bottom:0}
   .pf-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
@@ -421,7 +433,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.4.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.5.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -436,7 +448,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.4.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.5.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 
@@ -511,6 +523,7 @@ const SCHEMA = `{
       "n": 1,
       "timecode": "0:00-0:04",
       "narration": "the narration line for this shot",
+      "characters": "named characters visible in this shot, comma-separated, or 'No character'",
       "image_prompt": "string",
       "video_prompt": "string"
     }
@@ -535,6 +548,8 @@ function buildSuperPrompt(script){
   const mode = $("mode").value;
   const clip = Math.max(1, parseFloat($("clipLen").value) || 4);
   const shots = Math.max(1, parseInt($("shotCount").value) || 1);
+  const wpm = Math.max(40, parseFloat($("wpm").value) || 140);
+  const wordsPerShot = Math.max(3, Math.round(wpm * clip / 60));
 
   const transLine = translate
     ? `Translate the script into ${lang}, then base everything below on the translated text. Put the translation in "translated_script".`
@@ -543,11 +558,8 @@ function buildSuperPrompt(script){
     ? `Produce a SELF-CONTAINED short version — a complete standalone piece, NOT a teaser or invitation to watch a longer video — then base the shots on that short version. Put it in "summary".`
     : `Use the full script. Set "summary" to null.`;
   const shotCountLine = summarize
-    ? `- Number of shots: decide it yourself from the SHORT VERSION you write — roughly one shot per ${clip}s of that shorter narration. Do NOT pad to a fixed number; ${shots} is only a loose upper limit.`
-    : `- Target number of shots: about ${shots}. Each shot ≈ ${clip}s.`;
-  const splitLine = summarize
-    ? `- After writing the short version, split THAT (not the full script) into shots aligned to sentence/clause boundaries — about one shot per ~${clip}s of the short version.`
-    : `- Split the narration into about ${shots} shots, aligned to sentence/clause boundaries so each shot maps to a coherent line of narration.`;
+    ? `- Number of shots: let it emerge from the per-shot length rule below, applied to the SHORT VERSION. ${shots} is only a loose upper cap — never pad to reach it.`
+    : `- Number of shots: let it emerge from the per-shot length rule below (it should land near ${shots}). Do not force an exact count.`;
 
   return (
 `You are an expert at turning a voiceover / narration script into a shot-by-shot plan of AI image and video generation prompts.
@@ -564,7 +576,6 @@ SETTINGS
 - Visual style (apply to EVERY shot): ${style}
 - Target video generator: ${tool} — phrase prompts in natural language suited to it.
 - Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}
-${shotCountLine}
 
 CONSISTENCY BIBLE (do this first)
 - Identify the recurring subjects/characters and give each FIXED visual descriptors (look, wardrobe, age, etc.).
@@ -572,8 +583,13 @@ CONSISTENCY BIBLE (do this first)
 - Every shot below MUST stay consistent with this bible and the chosen style, so the shots read as one cohesive video.
 
 SHOT RULES
-${splitLine}
-- Give each shot a timecode range assuming ~${clip}s per shot (e.g. 0:00-0:0${clip < 10 ? clip : clip}).
+${shotCountLine}
+- Treat the narration as one continuous voiceover. A shot is a VISUAL cut laid over it — a shot is NOT required to equal one sentence.
+- Fill each shot with about ${wordsPerShot} words of narration (≈ ${clip}s of speech at ${wpm} wpm):
+  - Merge consecutive short sentences into one shot until it reaches roughly that length.
+  - If one sentence is much longer than that, split it across consecutive shots at natural phrase points (after a conjunction, clause, or breath) even where there is no punctuation.
+- Set each shot's "timecode" from its OWN word count (its words ÷ ${wpm} × 60 seconds), accumulating down the timeline — so timecodes reflect real reading time and won't all be exactly ${clip}s.
+- For each shot set "characters" to the named character(s) actually visible in that shot's image (comma-separated, using the bible names). If none appear, write exactly "No character".
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
 
@@ -691,6 +707,7 @@ function renderResult(d){
       '<div class="shot-head"><span class="shot-no">Shot ' + (sh.n ?? i+1) + '</span>' +
       '<span class="shot-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
       '<p class="shot-narr"><span class="narr-tag">Narration</span>' + (sh.narration ? escapeHTML(sh.narration) : '—') + '</p>' +
+      '<p class="shot-chars"><span class="narr-tag">Characters</span>' + escapeHTML(sh.characters && String(sh.characters).trim() ? sh.characters : "No character") + '</p>' +
       promptField("Image prompt", "image_prompt", i, sh.image_prompt) +
       promptField("Video prompt", "video_prompt", i, sh.video_prompt);
     host.appendChild(card);
@@ -729,8 +746,8 @@ function autoGrow(ta){ ta.style.height = "auto"; ta.style.height = (ta.scrollHei
 function csvCell(v){ return '"' + String(v==null?"":v).replace(/"/g,'""') + '"'; }
 $("exportCsv").addEventListener("click", () => {
   if (!RESULT) return;
-  const rows = [["n","timecode","narration","image_prompt","video_prompt"]];
-  RESULT.shots.forEach((s,i) => rows.push([s.n ?? i+1, s.timecode||"", s.narration||"", s.image_prompt||"", s.video_prompt||""]));
+  const rows = [["n","timecode","narration","characters","image_prompt","video_prompt"]];
+  RESULT.shots.forEach((s,i) => rows.push([s.n ?? i+1, s.timecode||"", s.narration||"", s.characters||"", s.image_prompt||"", s.video_prompt||""]));
   const header = "# Script to Shot Prompts v" + APP_VERSION + " — exported " + new Date().toISOString().slice(0,10) + "\r\n";
   const csv = header + rows.map(r => r.map(csvCell).join(",")).join("\r\n");
   download(csv, "shot-prompts.csv", "text/csv");
@@ -848,12 +865,16 @@ $("exportHtml").addEventListener("click", () => {
   const meta = ["v" + APP_VERSION, styleLabel, s.tool, (s.mode === "i2v" ? "Image-to-video" : "Text-to-video"),
                 "~" + s.clipLen + "s/shot", RESULT.shots.length + " shots"].join(" · ");
 
+  function bkCard(title, inner){
+    return '<div class="cc collapsed"><div class="cch"><span>' + escapeHTML(title) + '</span><span class="cev">▸</span></div><div class="ccb">' + inner + '</div></div>';
+  }
+
   const cb = RESULT.consistency_bible || {}, bp = [];
   if (cb.subjects && cb.subjects.length) bp.push("<p><b>Subjects:</b> " + escapeHTML([].concat(cb.subjects).join("; ")) + "</p>");
   if (cb.setting) bp.push("<p><b>Setting:</b> " + escapeHTML(cb.setting) + "</p>");
   if (cb.palette) bp.push("<p><b>Palette:</b> " + escapeHTML(cb.palette) + "</p>");
   if (cb.tone) bp.push("<p><b>Tone:</b> " + escapeHTML(cb.tone) + "</p>");
-  const bibleHTML = bp.length ? '<div class="bx"><h3>Consistency bible</h3>' + bp.join("") + '</div>' : "";
+  const bibleHTML = bp.length ? bkCard("Consistency bible", bp.join("")) : "";
 
   const tp = [];
   if (RESULT.translated_script) tp.push("<h3>Translation</h3><p>" + escapeHTML(RESULT.translated_script) + "</p>");
@@ -861,9 +882,10 @@ $("exportHtml").addEventListener("click", () => {
   const transHTML = tp.length ? '<div class="bx">' + tp.join("") + '</div>' : "";
 
   const shotsHTML = RESULT.shots.map((sh,i) =>
-    '<div class="shot"><div class="sh-head"><span class="sh-no">Shot ' + (sh.n ?? i+1) + '</span>' +
+    '<div class="shot" id="bs' + i + '"><div class="sh-head"><span class="sh-no">Shot ' + (sh.n ?? i+1) + '</span>' +
     '<span class="sh-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
     '<p class="sh-narr"><b>Narration:</b> ' + (sh.narration ? escapeHTML(sh.narration) : '—') + '</p>' +
+    '<p class="sh-chars"><b>Characters:</b> ' + escapeHTML(sh.characters && String(sh.characters).trim() ? sh.characters : "No character") + '</p>' +
     '<div class="pf"><div class="pl"><span>Image prompt</span><button data-i="' + i + '" data-k="image_prompt">Copy</button></div><p class="pt">' + escapeHTML(sh.image_prompt || "") + '</p></div>' +
     '<div class="pf"><div class="pl"><span>Video prompt</span><button data-i="' + i + '" data-k="video_prompt">Copy</button></div><p class="pt">' + escapeHTML(sh.video_prompt || "") + '</p></div>' +
     '</div>'
@@ -876,12 +898,13 @@ $("exportHtml").addEventListener("click", () => {
       '<div class="opt-txt">' + (i===0 ? '<span class="ob">★ Recommended</span>' : '') + escapeHTML(String(t)) + '</div>' +
       '<button data-copyval="' + encodeURIComponent(String(t)) + '">Copy</button></div>').join("");
   }
-  const packHTML = (bkHooks.length || bkDescs.length)
-    ? '<div class="bx"><h3>Thumbnail hooks &amp; descriptions</h3>' +
-      (bkHooks.length ? '<div class="ob2">Hooks / titles</div>' + optRowsHTML(bkHooks) : '') +
-      (bkDescs.length ? '<div class="ob2" style="margin-top:12px">Descriptions</div>' + optRowsHTML(bkDescs) : '') +
-      '</div>'
-    : '';
+  const packInner =
+    (bkHooks.length ? '<div class="ob2">Hooks / titles</div>' + optRowsHTML(bkHooks) : '') +
+    (bkDescs.length ? '<div class="ob2" style="margin-top:12px">Descriptions</div>' + optRowsHTML(bkDescs) : '');
+  const packHTML = (bkHooks.length || bkDescs.length) ? bkCard("Thumbnail hooks & descriptions", packInner) : '';
+
+  const jumpButtons = RESULT.shots.map((sh,i) => '<button data-j="' + i + '">' + (sh.n ?? i+1) + '</button>').join("");
+  const jumpHTML = '<div id="jp"><div id="jpbar"><span class="jpt-title">Quick jump (' + RESULT.shots.length + ')</span><button id="jpt">Hide</button></div><div id="jpg">' + jumpButtons + '</div></div>';
 
   const dataJSON = JSON.stringify(st).replace(/</g,"\\u003c").replace(/>/g,"\\u003e");
 
@@ -908,9 +931,23 @@ $("exportHtml").addEventListener("click", () => {
 '.opt.best{border-color:#B4521E;background:#F1E2D7}.opt-txt{flex:1;font-size:14px}' +
 '.ob{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B4521E;margin-bottom:2px}' +
 '.ob2{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5A554C;margin-bottom:6px}' +
+'.sh-chars{font-size:13px;color:#1C1A17;border-left:2px solid #F1E2D7;padding-left:11px;margin:0 0 12px}' +
+'.cc{background:#fff;border:1px solid #E2DDD1;border-radius:12px;margin:0 0 16px;overflow:hidden}' +
+'.cch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer}' +
+'.cch span:first-child{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5A554C}' +
+'.ccb{padding:0 16px 16px}.ccb p{margin:5px 0}.cc.collapsed .ccb{display:none}' +
+'.cev{transition:transform .15s;color:#5A554C}.cc:not(.collapsed) .cev{transform:rotate(90deg)}' +
+'#jp{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;width:184px;max-height:74vh;background:#fff;border:1px solid #E2DDD1;border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,.16);overflow:hidden}' +
+'#jpbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid #E2DDD1}' +
+'.jpt-title{font-family:monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5A554C}' +
+'#jpg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:12px;overflow:auto}' +
+'#jpg button{padding:7px 0;font-size:12px;font-weight:600;border:1px solid #CFC8B8;background:#FBFAF6;border-radius:7px;cursor:pointer}' +
+'#jpg button:hover{border-color:#B4521E}' +
+'#jp.min{width:auto}#jp.min #jpg{display:none}#jp.min #jpbar{border-bottom:none}' +
+'@media(max-width:560px){#jp{width:150px;max-height:60vh}}' +
 '</style></head><body><div class="w">' +
 '<h1>' + escapeHTML(name) + '</h1><p class="meta">Backup · ' + escapeHTML(when) + ' · ' + escapeHTML(meta) + '</p>' +
-packHTML + transHTML + bibleHTML + shotsHTML +
+packHTML + transHTML + bibleHTML + shotsHTML + jumpHTML +
 '<scr' + 'ipt type="application/json" id="d">' + dataJSON + '</scr' + 'ipt>' +
 '<scr' + 'ipt>var D=JSON.parse(document.getElementById("d").textContent);' +
 'document.querySelectorAll("button[data-i]").forEach(function(b){b.addEventListener("click",function(){' +
@@ -918,7 +955,10 @@ packHTML + transHTML + bibleHTML + shotsHTML +
 'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});' +
 'document.querySelectorAll("button[data-copyval]").forEach(function(b){b.addEventListener("click",function(){' +
 'var t=decodeURIComponent(b.dataset.copyval);navigator.clipboard.writeText(t).then(function(){' +
-'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});</scr' + 'ipt>' +
+'var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o},1200)})})});' +
+'document.querySelectorAll(".cch").forEach(function(h){h.addEventListener("click",function(){h.parentNode.classList.toggle("collapsed")})});' +
+'document.querySelectorAll("#jpg button").forEach(function(b){b.addEventListener("click",function(){var el=document.getElementById("bs"+b.dataset.j);if(el)el.scrollIntoView({behavior:"smooth",block:"start"})})});' +
+'var jpt=document.getElementById("jpt");if(jpt)jpt.addEventListener("click",function(){var p=document.getElementById("jp");var m=p.classList.toggle("min");jpt.textContent=m?"Show":"Hide"});</scr' + 'ipt>' +
 '</div></body></html>';
 
   download(doc, slugify(name) + "-backup.html", "text/html");
