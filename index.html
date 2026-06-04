@@ -5,6 +5,21 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.8.0
+    - Visual style recipes: each preset (Cinematic, Photorealistic,
+      Anime, etc.) now carries a detailed, generator-friendly recipe
+      (lens, lighting, color, texture, mood + an Avoid line) shown in an
+      editable box and injected into the super-prompt instead of the bare
+      label. Replaces the model's improvised "Register B" jargon. Custom
+      gives an empty box to write your own. Recipe is saved per project.
+  v1.7.0
+    - Depiction & variety rules added to the super-prompt (both modes):
+      (1) visualise the MEANING of each shot, not the words; (2) avoid
+      rendering text/scrolls/pages unless clearly best, never next to a
+      similar image; (3) no two consecutive shots may share subject,
+      setting, or composition; (4) consistency applies to characters and
+      style only, not to repeating scenes. Stops the "same scroll frame"
+      contiguous-repeat problem.
   v1.6.1
     - Each image prompt now ends with 'make the file name "N"'
       (where N is the shot number), so generator agents that
@@ -311,7 +326,8 @@
           <option>Minimalist / clean</option>
           <option value="__custom">Custom…</option>
         </select>
-        <input type="text" id="styleCustom" class="hidden" style="margin-top:8px" placeholder="Describe your style…" />
+        <div id="styleHint" style="margin-top:8px;font-size:12px;color:var(--ink-soft)">This recipe is sent to the model — edit it to fine-tune the look.</div>
+        <textarea id="styleRecipe" style="margin-top:6px;min-height:90px;font-size:13.5px" placeholder="Describe the visual style: lens, lighting, color, texture, composition, mood. Add an 'Avoid:' line for what to keep out."></textarea>
       </div>
 
       <div>
@@ -447,7 +463,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.6.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.8.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -462,7 +478,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.6.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.8.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -494,14 +510,35 @@ function updateStats(){
 }
 ["script","wpm","clipLen"].forEach(id => $(id).addEventListener("input", updateStats));
 
-/* ---------- style custom toggle ---------- */
-$("style").addEventListener("change", () => {
-  $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
-});
+/* ---------- visual style recipes ---------- */
+const STYLE_RECIPES = {
+  "Cinematic": "Anamorphic lens, shallow depth of field, motivated practical lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, 2.39:1 widescreen composition, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
+  "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
+  "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
+  "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
+  "Watercolor illustration": "Soft translucent watercolor washes, visible paper texture and pigment bleed, gentle wet-on-wet color transitions, loose expressive brushstrokes at edges, muted pastel-to-warm palette, white paper showing through as highlights, hand-painted organic feel. Avoid: sharp digital edges, photorealism, bold outlines, flat vector fills, high contrast.",
+  "Documentary": "Handheld camera feel with subtle motion, natural available light, neutral ungraded color, reportage-style candid framing, medium depth of field on a zoom lens (24-70mm equivalent), slight lens distortion at the wide end, observational distance, no dramatic staging. Avoid: cinematic color grading, shallow bokeh, artificial lighting setups, posed compositions, stylization.",
+  "Film noir": "High contrast black-and-white or near-monochrome with deep shadows, hard directional lighting from a single source, strong cast shadows and venetian-blind patterns, low-key lighting (predominantly dark frame), Dutch angles and canted framing, fog or smoke atmosphere, 1940s visual language. Avoid: bright even lighting, saturated color, soft flat shadows, modern clean aesthetic.",
+  "Cyberpunk": "Neon-drenched nighttime urban environment, electric blue and magenta palette with hot pink and toxic green accents, volumetric fog catching neon light, reflective wet streets, holographic UI elements and signage, high-tech low-life contrast, shallow depth of field with anamorphic lens flares, dense layered visual information. Avoid: natural daylight, pastoral settings, muted colors, clean minimalist spaces.",
+  "Vintage film": "Kodachrome or Ektachrome color rendition with warm amber highlights and faded cool shadows, visible film grain (medium to heavy), slightly desaturated midtones, soft halation around highlights, vignetting at frame edges, rounded color rolloff, period-appropriate framing. Avoid: digital sharpness, clean modern color science, HDR dynamic range, contemporary styling.",
+  "Minimalist / clean": "Generous white space, flat or near-flat design, limited restrained palette (2-3 colors maximum), clean geometric composition, soft diffused even lighting, no texture or grain, sharp precise edges, calm uncluttered frame. Avoid: busy backgrounds, heavy texture, dramatic lighting, saturated or noisy color, ornate detail."
+};
+function loadStyleRecipe(){
+  const v = $("style").value;
+  $("styleRecipe").value = (v === "__custom") ? "" : (STYLE_RECIPES[v] || "");
+  $("styleRecipe").placeholder = (v === "__custom")
+    ? "Write your own style: lens, lighting, color, texture, composition, mood. Add an 'Avoid:' line."
+    : "Edit this recipe to fine-tune the look.";
+}
+$("style").addEventListener("change", loadStyleRecipe);
+
 function reflectSummarize(){ $("sumNote").classList.toggle("hidden", !$("summarize").checked); }
 $("summarize").addEventListener("change", reflectSummarize);
 function currentStyle(){
-  return $("style").value === "__custom" ? ($("styleCustom").value.trim() || "Cinematic") : $("style").value;
+  const r = $("styleRecipe").value.trim();
+  if (r) return r;
+  const v = $("style").value;
+  return (v === "__custom") ? "Cinematic" : (STYLE_RECIPES[v] || v);
 }
 
 /* ---------- validation (never silently trims the script) ---------- */
@@ -596,6 +633,13 @@ function modeRules(mode, clip){
        + `image_prompt = an optional single keyframe still of the same shot.`;
 }
 
+const DEPICTION_RULES =
+`DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
+- Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
+- Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography UNLESS that is clearly the single best image for that shot — and NEVER in two consecutive or visually similar shots. (Generators render text as garbled nonsense, so avoid text imagery by default.)
+- VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
+- Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.`;
+
 function buildSuperPrompt(script){
   const translate = $("translate").checked;
   const summarize = $("summarize").checked;
@@ -629,6 +673,8 @@ VISUAL SETTINGS
 - Target video generator: ${tool} — phrase prompts in natural language suited to it.
 - Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}.
 - ${modeRules(mode, clip)}
+
+${DEPICTION_RULES}
 
 SHOTS (the narration is given and fixed — write prompts for each):
 ${shotList}
@@ -685,6 +731,8 @@ SHOT RULES
 - For each shot set "characters" to the named character(s) visible in that shot's image (comma-separated, bible names). If none, write exactly "No character".
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
+
+${DEPICTION_RULES}
 
 TITLES & DESCRIPTIONS
 - "hooks": 3 short, punchy lines that work as a thumbnail caption AND a video title (each roughly under 60 characters), strongest first.
@@ -893,7 +941,7 @@ function currentState(){
     script: $("script").value,
     settings: {
       translate:$("translate").checked, summarize:$("summarize").checked, targetLang:$("targetLang").value,
-      style:$("style").value, styleCustom:$("styleCustom").value, tool:$("tool").value, mode:$("mode").value,
+      style:$("style").value, styleRecipe:$("styleRecipe").value, tool:$("tool").value, mode:$("mode").value,
       wpm:$("wpm").value, clipLen:$("clipLen").value
     },
     segments: SEGMENTS,
@@ -905,8 +953,10 @@ function applyState(p, projName){
   const s = p.settings || {};
   $("translate").checked = !!s.translate; $("summarize").checked = !!s.summarize; reflectSummarize();
   $("targetLang").value = s.targetLang || "English";
-  $("style").value = s.style || "Cinematic"; $("styleCustom").value = s.styleCustom || "";
-  $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
+  $("style").value = s.style || "Cinematic";
+  if (typeof s.styleRecipe === "string") $("styleRecipe").value = s.styleRecipe;
+  else if (s.style === "__custom" && s.styleCustom) $("styleRecipe").value = s.styleCustom;
+  else loadStyleRecipe();
   $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
   $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 5;
   SEGMENTS = p.segments || null;
@@ -953,7 +1003,7 @@ let draftT; function saveDraftSoon(){ clearTimeout(draftT); draftT = setTimeout(
 function restoreDraft(){
   let p = null; try { p = JSON.parse(localStorage.getItem(DKEY)); } catch(e){}
   if (p && (p.script || p.result)){ applyState(p, null); }
-  else { updateStats(); }
+  else { loadStyleRecipe(); updateStats(); }
 }
 document.addEventListener("input", saveDraftSoon);
 document.addEventListener("change", saveDraftSoon);
@@ -963,7 +1013,7 @@ $("newProjBtn").addEventListener("click", () => {
   if (!confirm("Start a new project? This clears the current script and result.\n(Your saved projects and any downloaded backups are kept.)")) return;
   $("script").value = "";
   $("translate").checked = false; $("summarize").checked = false; reflectSummarize(); $("targetLang").value = "English";
-  $("style").value = "Cinematic"; $("styleCustom").value = ""; $("styleCustom").classList.add("hidden");
+  $("style").value = "Cinematic"; loadStyleRecipe();
   $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 5;
   SEGMENTS = null;
   $("rawResult").value = ""; $("projName").value = ""; $("projLoad").value = "";
@@ -986,7 +1036,7 @@ $("exportHtml").addEventListener("click", () => {
   st.app_version = APP_VERSION; st.exported_at = new Date().toISOString();
   const name = $("projName").value.trim() || "Untitled project";
   const when = new Date().toLocaleString();
-  const styleLabel = s.style === "__custom" ? (s.styleCustom || "Custom") : s.style;
+  const styleLabel = s.style === "__custom" ? "Custom" : s.style;
   const meta = ["v" + APP_VERSION, styleLabel, s.tool, (s.mode === "i2v" ? "Image-to-video" : "Text-to-video"),
                 "~" + s.clipLen + "s/shot", RESULT.shots.length + " shots"].join(" · ");
 
