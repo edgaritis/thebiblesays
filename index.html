@@ -5,6 +5,13 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.9.1
+    - Boundary-first segmentation: the script is now cut at natural
+      boundaries (sentence -> clause -> clean word for run-ons) FIRST,
+      then whole units are grouped to the reading-time target. The
+      reading time now controls grouping density, not where a phrase is
+      chopped — so no more breaks like "flesh and | blood" or "...no |
+      path back". Still fully word-for-word.
   v1.9.0  (Wave 1: workflow + agent)
     - Agent Brief: one-paste "Copy Agent Brief" output (style recipe +
       aspect ratio + numbered shot list with characters/image/video),
@@ -541,7 +548,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.9.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.9.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -556,7 +563,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.9.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.9.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -648,26 +655,67 @@ function validateInput(){
 
 /* ---------- app-side segmentation (B2): narration is verbatim, app-owned ---------- */
 function fmtTime(sec){ const m = Math.floor(sec/60), s = Math.round(sec%60); return m + ":" + String(s).padStart(2,"0"); }
+// Boundary-first segmentation: cut at natural boundaries, THEN group to the
+// reading-time target. The reading time controls grouping density, never where
+// a phrase may be chopped. Verbatim-safe (only regroups the same words in order).
+const SEG_WEAK = new Set("a an the and or but nor so yet to of in on at by for with as from into onto over under is are was were am be been being this that these those".split(" "));
+function segIsWeak(w){ return SEG_WEAK.has(String(w).toLowerCase().replace(/[^a-z']/g, "")); }
+function segEndsSentence(w){ return /[.!?][")'\u2019\u201d\]]*$/.test(w); }
+function segEndsClause(w){ return /[,;:\u2014\u2013][")'\u2019\u201d\]]*$/.test(w); }
 function segmentScript(text, wordsPerShot, wpm){
-  const norm = text.replace(/\s+/g," ").trim();
+  const norm = text.replace(/\s+/g, " ").trim();
   if (!norm) return [];
   const words = norm.split(" ");
-  const hardMax = Math.max(wordsPerShot + 2, Math.round(wordsPerShot * 1.6));
-  const chunks = [];
+  const target = Math.max(2, wordsPerShot);
+  const cap = Math.max(target + 3, Math.round(target * 1.7));      // a unit longer than this must be split
+  const minClause = Math.max(2, Math.round(target * 0.6));         // don't make tiny clause fragments
+
+  // 1) atomize at sentence ends
+  const atoms = [];
   let cur = [];
-  for (let i=0;i<words.length;i++){
-    cur.push(words[i]);
-    const endsSentence = /[.!?][")'\u2019\u201d\]]*$/.test(words[i]);
-    if ((cur.length >= wordsPerShot && endsSentence) || cur.length >= hardMax){
-      chunks.push(cur.join(" ")); cur = [];
+  for (const w of words){ cur.push(w); if (segEndsSentence(w)){ atoms.push(cur); cur = []; } }
+  if (cur.length) atoms.push(cur);
+
+  // 2) split any atom longer than cap — first at clause boundaries, then at clean words
+  function splitLong(arr){
+    if (arr.length <= cap) return [arr];
+    const byClause = []; let seg = [];
+    for (const w of arr){
+      seg.push(w);
+      if (segEndsClause(w) && seg.length >= minClause){ byClause.push(seg); seg = []; }
     }
+    if (seg.length) byClause.push(seg);
+    const out = [];
+    for (const piece of byClause){
+      if (piece.length <= cap){ out.push(piece); continue; }
+      let s = [];
+      for (let i=0;i<piece.length;i++){
+        s.push(piece[i]);
+        const cleanHere = s.length >= target && !segIsWeak(piece[i]) && (i+1 >= piece.length || !segIsWeak(piece[i+1]));
+        if (cleanHere || s.length >= cap){ out.push(s); s = []; }
+      }
+      if (s.length) out.push(s);
+    }
+    return out;
   }
-  if (cur.length) chunks.push(cur.join(" "));
+  const units = [];
+  atoms.forEach(a => splitLong(a).forEach(u => units.push(u)));
+
+  // 3) group whole units into shots up to ~target (every break stays on a natural boundary)
+  const chunks = [];
+  cur = [];
+  for (const u of units){
+    if (cur.length && cur.length + u.length > cap){ chunks.push(cur); cur = []; }
+    cur = cur.concat(u);
+    if (cur.length >= target){ chunks.push(cur); cur = []; }
+  }
+  if (cur.length) chunks.push(cur);
+
+  // 4) timecodes from real word counts
   let t = 0;
-  return chunks.map((narr,i) => {
-    const wc = narr.split(" ").filter(Boolean).length;
-    const start = t; t += (wc / wpm) * 60;
-    return { n:i+1, narration:narr, timecode: fmtTime(start) + "-" + fmtTime(t) };
+  return chunks.map((arr,i) => {
+    const start = t; t += (arr.length / wpm) * 60;
+    return { n:i+1, narration: arr.join(" "), timecode: fmtTime(start) + "-" + fmtTime(t) };
   });
 }
 
