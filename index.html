@@ -5,6 +5,16 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.6.0
+    - Faithfulness rebuild (B2): when not translating/summarising, the
+      APP splits the script into shots itself (verbatim, word-for-word)
+      and computes the timecodes; the model only writes the image/video
+      prompts + characters. A "Word-for-word" banner confirms it.
+    - "Clip length" replaced by "Reading time / shot (s)" (default 5,
+      range 2-15); Shots is now auto-derived and read-only — no more
+      conflicting shot-count override.
+    - Input is never silently trimmed; long scripts warn instead.
+    - Characters now shown bold, inline beside the Narration label.
   v1.5.0
     - Shot segmentation rewritten around reading time: each shot is
       filled with ~one clip-length of narration (short sentences
@@ -183,9 +193,11 @@
   .shot-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
   .shot-no{font-family:var(--display);font-size:18px;font-weight:600}
   .shot-tc{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
-  .shot-narr{font-size:14px;color:var(--ink-soft);font-style:italic;margin:0 0 12px;padding-left:11px;border-left:2px solid var(--line-strong)}
+  .shot-narr{margin:0 0 12px;padding-left:11px;border-left:2px solid var(--line-strong)}
   .narr-tag{display:block;font-style:normal;font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
-  .shot-chars{font-size:13.5px;color:var(--ink);margin:0 0 12px;padding-left:11px;border-left:2px solid var(--accent-soft)}
+  .nrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:3px}
+  .chars-inline{font-weight:700;font-size:13px;color:var(--ink);text-align:right}
+  .ntext{font-style:italic;font-size:14px;color:var(--ink-soft)}
   .pf{margin:0 0 12px}
   .pf:last-child{margin-bottom:0}
   .pf-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
@@ -327,16 +339,13 @@
       <div class="stat"><div class="n" id="statWords">0</div><div class="l">Words</div></div>
       <div class="stat"><div class="n" id="statDur">0:00</div><div class="l">Est. duration</div></div>
       <div class="stat editable">
-        <div class="l" style="margin-top:0">Clip length (s)</div>
-        <input type="number" id="clipLen" value="4" min="1" max="30" />
+        <div class="l" style="margin-top:0">Reading time / shot (s)</div>
+        <input type="number" id="clipLen" value="5" min="2" max="15" />
       </div>
-      <div class="stat editable">
-        <div class="l" style="margin-top:0">Shots (editable)</div>
-        <input type="number" id="shotCount" value="0" min="1" max="300" />
-      </div>
+      <div class="stat"><div class="n" id="statShots">0</div><div class="l">Shots (auto)</div></div>
     </div>
 
-    <p id="sumNote" class="hidden" style="margin-top:12px;font-size:13px;background:#FBF3E2;color:#7A5A12;border:1px solid #ECD9A8;padding:9px 13px;border-radius:9px">Summarize is on — the shot count will be decided from the short version the AI writes, so the number above is only a rough hint (it won't shrink on its own). Lower it if you want a hard cap.</p>
+    <p id="sumNote" class="hidden" style="margin-top:12px;font-size:13px;background:#FBF3E2;color:#7A5A12;border:1px solid #ECD9A8;padding:9px 13px;border-radius:9px">Summarize is on — the AI writes a short version, so the shot count above is only an estimate from your full script; the real count comes from the short version.</p>
 
     <div class="btn-row">
       <button class="accent" id="buildBtn">Build super-prompt →</button>
@@ -390,6 +399,7 @@
   <section id="resultSection" class="hidden">
     <p class="step-tag">Step 4 — Your shot list</p>
     <h2 id="resultTitle">Shots</h2>
+    <div id="verbatimNote" class="hidden"></div>
     <div id="hooksBox" class="hidden"></div>
     <div id="transBox" class="bible hidden"></div>
     <div id="bibleBox" class="bible hidden"></div>
@@ -433,7 +443,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.5.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.6.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -448,9 +458,10 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.5.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.6.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
+let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
 
 /* ---------- stats ---------- */
 function countCJK(s){ const m = s.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/g); return m ? m.length : 0; }
@@ -460,8 +471,8 @@ function updateStats(){
   const s = $("script").value;
   const words = wordCount(s);
   const cjk = countCJK(s);
-  const wpm = Math.max(1, parseFloat($("wpm").value) || 140);
-  const clip = Math.max(1, parseFloat($("clipLen").value) || 4);
+  const wpm = Math.max(40, parseFloat($("wpm").value) || 140);
+  const clip = Math.max(1, parseFloat($("clipLen").value) || 5);
 
   let seconds, note = "";
   if (cjk > 20 && cjk >= words){
@@ -475,13 +486,9 @@ function updateStats(){
   $("statWords").textContent = words;
   const mm = Math.floor(seconds/60), ss = Math.round(seconds%60);
   $("statDur").textContent = words ? (mm + ":" + String(ss).padStart(2,"0")) : "0:00";
-
-  const suggested = Math.max(1, Math.ceil(seconds/clip));
-  const sc = $("shotCount");
-  if (!sc.dataset.touched || sc.value === "0" || !words) sc.value = words ? suggested : 0;
+  $("statShots").textContent = words ? Math.max(1, Math.ceil(seconds / clip)) : 0;
 }
 ["script","wpm","clipLen"].forEach(id => $(id).addEventListener("input", updateStats));
-$("shotCount").addEventListener("input", () => { $("shotCount").dataset.touched = "1"; });
 
 /* ---------- style custom toggle ---------- */
 $("style").addEventListener("change", () => {
@@ -493,20 +500,46 @@ function currentStyle(){
   return $("style").value === "__custom" ? ($("styleCustom").value.trim() || "Cinematic") : $("style").value;
 }
 
-/* ---------- validation ---------- */
+/* ---------- validation (never silently trims the script) ---------- */
 function validateInput(){
   const el = $("inputMsg"); el.className = "msg";
-  let s = $("script").value.trim();
+  const s = $("script").value.trim();
   if (s.length < MIN_CHARS){ el.textContent = "Script looks too short to plan shots from — paste a fuller narration."; el.classList.add("show","error"); return null; }
-  let capped = false;
-  if (s.length > MAX_CHARS){ s = s.slice(0, MAX_CHARS); capped = true; }
-  if (capped){ el.textContent = "Long script: trimmed to " + MAX_CHARS.toLocaleString() + " characters for one clean round-trip. For more, split it into parts."; el.classList.add("show","warn"); }
-  else { el.className = "msg"; }
+  if (s.length > MAX_CHARS){
+    el.textContent = "Long script (" + s.length.toLocaleString() + " characters) — it's all included, nothing trimmed, but the AI's reply could get cut off. If shots go missing at the end, split the script and run it in parts.";
+    el.classList.add("show","warn");
+  }
   return s;
 }
 
+/* ---------- app-side segmentation (B2): narration is verbatim, app-owned ---------- */
+function fmtTime(sec){ const m = Math.floor(sec/60), s = Math.round(sec%60); return m + ":" + String(s).padStart(2,"0"); }
+function segmentScript(text, wordsPerShot, wpm){
+  const norm = text.replace(/\s+/g," ").trim();
+  if (!norm) return [];
+  const words = norm.split(" ");
+  const hardMax = Math.max(wordsPerShot + 2, Math.round(wordsPerShot * 1.6));
+  const chunks = [];
+  let cur = [];
+  for (let i=0;i<words.length;i++){
+    cur.push(words[i]);
+    const endsSentence = /[.!?][")'\u2019\u201d\]]*$/.test(words[i]);
+    if ((cur.length >= wordsPerShot && endsSentence) || cur.length >= hardMax){
+      chunks.push(cur.join(" ")); cur = [];
+    }
+  }
+  if (cur.length) chunks.push(cur.join(" "));
+  let t = 0;
+  return chunks.map((narr,i) => {
+    const wc = narr.split(" ").filter(Boolean).length;
+    const start = t; t += (wc / wpm) * 60;
+    return { n:i+1, narration:narr, timecode: fmtTime(start) + "-" + fmtTime(t) };
+  });
+}
+
 /* ---------- super-prompt ---------- */
-const SCHEMA = `{
+// Used when Translate/Summarize is on (the model must segment the rewritten text).
+const SCHEMA_FULL = `{
   "detected_language": "string",
   "translated_script": "string or null",
   "summary": "string or null",
@@ -523,6 +556,26 @@ const SCHEMA = `{
       "n": 1,
       "timecode": "0:00-0:04",
       "narration": "the narration line for this shot",
+      "characters": "named characters visible in this shot, comma-separated, or 'No character'",
+      "image_prompt": "string",
+      "video_prompt": "string"
+    }
+  ]
+}`;
+// Used in passthrough (no translate/summarize): narration is pre-cut by the app and must NOT be returned.
+const SCHEMA_PASS = `{
+  "detected_language": "string",
+  "hooks": ["3 short punchy thumbnail/title hooks, strongest first"],
+  "descriptions": ["3 short video descriptions (1-2 sentences each), strongest first"],
+  "consistency_bible": {
+    "subjects": ["fixed visual descriptors for each recurring subject/character"],
+    "setting": "string",
+    "palette": "string",
+    "tone": "string"
+  },
+  "shots": [
+    {
+      "n": 1,
       "characters": "named characters visible in this shot, comma-separated, or 'No character'",
       "image_prompt": "string",
       "video_prompt": "string"
@@ -546,20 +599,58 @@ function buildSuperPrompt(script){
   const style = currentStyle();
   const tool = $("tool").value;
   const mode = $("mode").value;
-  const clip = Math.max(1, parseFloat($("clipLen").value) || 4);
-  const shots = Math.max(1, parseInt($("shotCount").value) || 1);
+  const clip = Math.max(1, parseFloat($("clipLen").value) || 5);
   const wpm = Math.max(40, parseFloat($("wpm").value) || 140);
   const wordsPerShot = Math.max(3, Math.round(wpm * clip / 60));
+  const passthrough = !translate && !summarize;
 
+  if (passthrough){
+    // B2: app owns the cut; narration is verbatim and is NOT returned by the model.
+    SEGMENTS = segmentScript(script, wordsPerShot, wpm);
+    const shotList = SEGMENTS.map(s => s.n + " | " + s.narration).join("\n");
+    return (
+`You are an expert at turning a voiceover script into AI image & video generation prompts.
+
+The narration has ALREADY been split into ${SEGMENTS.length} shots (below). The narration text is FIXED: do NOT change it, reword it, translate it, summarise it, or repeat it in your output. You only write prompts for each numbered shot.
+
+Detect the source language and report it in "detected_language".
+
+CONSISTENCY BIBLE (do this first)
+- Identify the recurring subjects/characters and give each FIXED visual descriptors (look, wardrobe, age, etc.).
+- Note the setting, the colour palette, and the tone.
+- Every shot MUST stay consistent with this bible and the chosen style, so the shots read as one cohesive video.
+
+VISUAL SETTINGS
+- Visual style (apply to EVERY shot): ${style}
+- Target video generator: ${tool} — phrase prompts in natural language suited to it.
+- Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}.
+- ${modeRules(mode, clip)}
+
+SHOTS (the narration is given and fixed — write prompts for each):
+${shotList}
+
+For EACH shot number above, return: "n" (the same number), "characters" (named character(s) actually visible in that shot's image, using the bible names, comma-separated; if none, exactly "No character"), "image_prompt", and "video_prompt". Keep the visual style explicit in image_prompt.
+
+TITLES & DESCRIPTIONS
+- "hooks": 3 short, punchy lines that work as a thumbnail caption AND as a video title (each roughly under 60 characters), strongest first.
+- "descriptions": 3 short video descriptions (1-2 sentences each), strongest first.
+
+OUTPUT FORMAT — CRITICAL
+- Respond with STRICT, VALID JSON ONLY. No markdown, no code fences, nothing before or after the JSON.
+- Do NOT include any narration text in your output.
+- Use EXACTLY this schema:
+${SCHEMA_PASS}`
+    );
+  }
+
+  // Translate/Summarize on: the model must segment the rewritten text, so it returns narration too.
+  SEGMENTS = null;
   const transLine = translate
     ? `Translate the script into ${lang}, then base everything below on the translated text. Put the translation in "translated_script".`
     : `Do not translate; keep the original language. Set "translated_script" to null.`;
   const sumLine = summarize
     ? `Produce a SELF-CONTAINED short version — a complete standalone piece, NOT a teaser or invitation to watch a longer video — then base the shots on that short version. Put it in "summary".`
     : `Use the full script. Set "summary" to null.`;
-  const shotCountLine = summarize
-    ? `- Number of shots: let it emerge from the per-shot length rule below, applied to the SHORT VERSION. ${shots} is only a loose upper cap — never pad to reach it.`
-    : `- Number of shots: let it emerge from the per-shot length rule below (it should land near ${shots}). Do not force an exact count.`;
 
   return (
 `You are an expert at turning a voiceover / narration script into a shot-by-shot plan of AI image and video generation prompts.
@@ -583,26 +674,22 @@ CONSISTENCY BIBLE (do this first)
 - Every shot below MUST stay consistent with this bible and the chosen style, so the shots read as one cohesive video.
 
 SHOT RULES
-${shotCountLine}
-- Treat the narration as one continuous voiceover. A shot is a VISUAL cut laid over it — a shot is NOT required to equal one sentence.
-- Fill each shot with about ${wordsPerShot} words of narration (≈ ${clip}s of speech at ${wpm} wpm):
-  - Merge consecutive short sentences into one shot until it reaches roughly that length.
-  - If one sentence is much longer than that, split it across consecutive shots at natural phrase points (after a conjunction, clause, or breath) even where there is no punctuation.
-- Set each shot's "timecode" from its OWN word count (its words ÷ ${wpm} × 60 seconds), accumulating down the timeline — so timecodes reflect real reading time and won't all be exactly ${clip}s.
-- For each shot set "characters" to the named character(s) actually visible in that shot's image (comma-separated, using the bible names). If none appear, write exactly "No character".
+- Number of shots: let it emerge from the per-shot length rule below. Do not pad to a fixed count.
+- Treat the (rewritten) narration as one continuous voiceover. A shot is a VISUAL cut — not necessarily one sentence.
+- Fill each shot with about ${wordsPerShot} words of narration (≈ ${clip}s of speech at ${wpm} wpm): merge short sentences; split an over-long sentence across shots at natural phrase points.
+- Set each shot's "timecode" from its OWN word count (words ÷ ${wpm} × 60 seconds), accumulating down the timeline.
+- For each shot set "characters" to the named character(s) visible in that shot's image (comma-separated, bible names). If none, write exactly "No character".
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
 
 TITLES & DESCRIPTIONS
-- "hooks": 3 short, punchy lines that work as a thumbnail caption AND as a video title (keep each roughly under 60 characters). Order them strongest first.
-- "descriptions": 3 short video descriptions, 1-2 sentences each, ordered strongest first.
-- Base both on the final script (translated/summarised if requested) and match its tone.
+- "hooks": 3 short, punchy lines that work as a thumbnail caption AND a video title (each roughly under 60 characters), strongest first.
+- "descriptions": 3 short video descriptions (1-2 sentences each), strongest first.
 
 OUTPUT FORMAT — CRITICAL
-- Respond with STRICT, VALID JSON ONLY.
-- No explanation, no markdown, no code fences, nothing before or after the JSON.
+- Respond with STRICT, VALID JSON ONLY. No markdown, no code fences, nothing before or after the JSON.
 - Use EXACTLY this schema:
-${SCHEMA}`
+${SCHEMA_FULL}`
   );
 }
 
@@ -610,6 +697,7 @@ $("buildBtn").addEventListener("click", () => {
   const script = validateInput();
   if (!script) return;
   $("superPrompt").textContent = buildSuperPrompt(script);
+  saveDraft();
   expandWorkflow();
   $("promptSection").classList.remove("hidden");
   $("parseSection").classList.remove("hidden");
@@ -644,6 +732,23 @@ $("parseBtn").addEventListener("click", () => {
     el.textContent = "The JSON parsed, but it has no \"shots\" array. Ask the model to follow the schema exactly.";
     el.classList.add("show","error"); return;
   }
+
+  if (SEGMENTS && SEGMENTS.length){
+    // B2 passthrough: app owns narration/timecode; take ONLY prompts/characters from the model.
+    const byN = {};
+    data.shots.forEach((sh, i) => { const key = (sh && sh.n != null) ? sh.n : (i+1); byN[key] = sh; });
+    data.shots = SEGMENTS.map((seg, i) => {
+      const m = byN[seg.n] || data.shots[i] || {};
+      return {
+        n: seg.n, timecode: seg.timecode, narration: seg.narration,
+        characters: (m.characters && String(m.characters).trim()) ? m.characters : "No character",
+        image_prompt: m.image_prompt || "", video_prompt: m.video_prompt || ""
+      };
+    });
+    data.translated_script = null; data.summary = null;
+    data._verbatim = true;
+  }
+
   RESULT = data;
   renderResult(data);
   saveDraft();
@@ -660,6 +765,13 @@ function escapeHTML(s){ return String(s==null?"":s).replace(/[&<>"]/g, c => ({"&
 function renderResult(d){
   const lang = d.detected_language ? (" · detected " + d.detected_language) : "";
   $("resultTitle").textContent = d.shots.length + " shots" + lang;
+
+  const vn = $("verbatimNote");
+  if (d._verbatim){
+    vn.removeAttribute("class");
+    vn.setAttribute("style", "margin:0 0 16px;font-size:13px;background:#EAF2EB;color:#3F6B47;border:1px solid #CADBCC;padding:9px 13px;border-radius:9px");
+    vn.textContent = "✓ Word-for-word: the app cut the narration itself, so every word of your script is preserved exactly across these shots.";
+  } else { vn.className = "hidden"; vn.removeAttribute("style"); vn.textContent = ""; }
 
   // hooks & descriptions (collapsible, default collapsed)
   const hooks = Array.isArray(d.hooks) ? d.hooks.filter(x => x != null && String(x).trim()) : [];
@@ -706,8 +818,11 @@ function renderResult(d){
     card.innerHTML =
       '<div class="shot-head"><span class="shot-no">Shot ' + (sh.n ?? i+1) + '</span>' +
       '<span class="shot-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
-      '<p class="shot-narr"><span class="narr-tag">Narration</span>' + (sh.narration ? escapeHTML(sh.narration) : '—') + '</p>' +
-      '<p class="shot-chars"><span class="narr-tag">Characters</span>' + escapeHTML(sh.characters && String(sh.characters).trim() ? sh.characters : "No character") + '</p>' +
+      '<div class="shot-narr">' +
+        '<div class="nrow"><span class="narr-tag" style="margin-bottom:0">Narration</span>' +
+        '<span class="chars-inline">' + escapeHTML(sh.characters && String(sh.characters).trim() ? sh.characters : "No character") + '</span></div>' +
+        '<div class="ntext">' + (sh.narration ? escapeHTML(sh.narration) : '—') + '</div>' +
+      '</div>' +
       promptField("Image prompt", "image_prompt", i, sh.image_prompt) +
       promptField("Video prompt", "video_prompt", i, sh.video_prompt);
     host.appendChild(card);
@@ -770,8 +885,9 @@ function currentState(){
     settings: {
       translate:$("translate").checked, summarize:$("summarize").checked, targetLang:$("targetLang").value,
       style:$("style").value, styleCustom:$("styleCustom").value, tool:$("tool").value, mode:$("mode").value,
-      wpm:$("wpm").value, clipLen:$("clipLen").value, shotCount:$("shotCount").value
+      wpm:$("wpm").value, clipLen:$("clipLen").value
     },
+    segments: SEGMENTS,
     result: RESULT
   };
 }
@@ -783,8 +899,8 @@ function applyState(p, projName){
   $("style").value = s.style || "Cinematic"; $("styleCustom").value = s.styleCustom || "";
   $("styleCustom").classList.toggle("hidden", $("style").value !== "__custom");
   $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
-  $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 4;
-  $("shotCount").value = s.shotCount || 0; if (s.shotCount) $("shotCount").dataset.touched = "1";
+  $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 5;
+  SEGMENTS = p.segments || null;
   if (projName != null) $("projName").value = projName;
   updateStats();
   RESULT = p.result || null;
@@ -839,8 +955,8 @@ $("newProjBtn").addEventListener("click", () => {
   $("script").value = "";
   $("translate").checked = false; $("summarize").checked = false; reflectSummarize(); $("targetLang").value = "English";
   $("style").value = "Cinematic"; $("styleCustom").value = ""; $("styleCustom").classList.add("hidden");
-  $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 4;
-  $("shotCount").value = 0; delete $("shotCount").dataset.touched;
+  $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 5;
+  SEGMENTS = null;
   $("rawResult").value = ""; $("projName").value = ""; $("projLoad").value = "";
   RESULT = null;
   ["promptSection","parseSection","resultSection"].forEach(id => $(id).classList.add("hidden"));
