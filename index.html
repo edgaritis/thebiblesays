@@ -5,6 +5,59 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.13.0
+    - Truncation detection: after parsing, if any shot comes back with no
+      image prompt (or you got fewer shots than expected in passthrough),
+      a banner warns that the model's reply was likely cut off and tells
+      you to re-run or split the script. Empty shots are also flagged by
+      the linter. Catches the silent failure where long replies truncate
+      and ship half-empty.
+    - Copy narration: a "Copy narration ▾" control in the results toolbar
+      copies the processed narration either per shot (numbered) or as one
+      paragraph, sourced from the shot narration so it matches the
+      timecodes in every mode. Doubles as the future caption source.
+    - Dedup: Import now lives only in the top "Open ▾" menu; the duplicate
+      button was removed from the bottom Save & load panel (the panel keeps
+      Save / Load / Delete). The note there now points to the top menu.
+  v1.12.0
+    - "Open ▾" menu in the top bar, next to New project. Opening the app,
+      the two start-of-session actions — load a saved project, import a
+      backup — are now reachable at the top instead of only at the bottom
+      of the page. The menu lists your saved projects (click to load) and
+      an Import item. Additive and minimal: the bottom "Save & load" panel
+      is unchanged and remains the full manager (Save, Load, Delete,
+      Import); Save stays at the end of the flow where it belongs. Closes
+      on outside-click or Esc.
+  v1.11.0
+    - PROMPT LINTER (advisory, non-blocking): after parsing, each shot's
+      prompts are checked for the failure modes that waste generations, and
+      flagged with a ⚠ tag (hover for the reason) plus a summary line above
+      the shot list. Checks are deliberately conservative — only the ones
+      that are reliable: empty / placeholder prompts, prompts that would
+      render on-screen text (which generators garble), over-long prompts
+      (detail dilution, >75 words), and very short image prompts (<6 words,
+      likely missing setting). A "world-mismatch" check was intentionally
+      left out as too unreliable. Nothing is blocked; fix or ignore.
+      Thresholds live in the LINT constant for tuning.
+  v1.10.0
+    - WORLD INFERENCE: the model now identifies the distinct world(s) a
+      script moves through (e.g. an ancient story + its present-day
+      parallel), derives each world's setting, era, fitting light sources,
+      who belongs, and what's out of place — then GROUNDS every image
+      prompt (close-ups included) in its own world and excludes anything
+      out-of-world. Fixes "wrong setting" drift (e.g. a primeval garden
+      no longer summons candlelit rooms) and supports multi-world scripts.
+    - Worlds card (collapsible) shows the inferred world(s); when a script
+      spans 2+ worlds, each shot is tagged with its world in both the
+      cards and table views. Display-only this build — to re-ground from a
+      correction you re-run (per-shot regenerate is a later wave).
+    - Recipe cleanup: the Cinematic preset's "motivated practical lighting"
+      (which leaked lamps/candles into scenes) is now "naturalistically
+      motivated lighting" — recipes describe the LOOK, the world supplies
+      the light source.
+    - Table view: prompt cells now start collapsed (fixed height + scroll)
+      so the grid stays scannable; a cell expands to fit when you focus it,
+      grows as you type, and shrinks back on blur. Cards view unchanged.
   v1.9.2
     - i2v anchor: in Image-to-video mode, each video prompt now begins
       with "Start from attached image as the first frame." so the clip
@@ -308,6 +361,17 @@
   /* adjacent-similarity flag */
   .shot.flag-sim{border-color:#E6B450;box-shadow:0 0 0 1px #E6B450 inset}
   .sim-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#8A5A12;background:#FBF3E2;border:1px solid #ECD9A8;border-radius:7px;padding:2px 8px;margin-left:8px}
+  .lint-badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;color:#9B3D2E;background:#FBEEEA;border:1px solid #ECC9BF;border-radius:7px;padding:2px 7px;margin-left:6px;cursor:default}
+  .lint-note{font-size:13px;padding:9px 13px;border-radius:9px;margin:0 0 14px}
+  .lint-note.warn{color:#9B3D2E;background:#FBEEEA;border:1px solid #ECC9BF}
+  .lint-note.ok{color:#3E6B4F;background:#EEF5EF;border:1px solid #CFE3D4}
+  .open-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:236px;max-width:300px;background:#FFFFFF;border:1px solid var(--line);border-radius:11px;box-shadow:0 10px 30px rgba(28,26,23,.14);padding:6px;z-index:60}
+  .open-menu .om-label{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);padding:6px 9px 4px}
+  .open-menu .om-item{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 9px;font-size:13.5px;color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .open-menu .om-item:hover{background:var(--accent-soft)}
+  .open-menu .om-empty{padding:8px 9px;font-size:12.5px;color:var(--ink-soft)}
+  .open-menu .om-sep{height:1px;background:var(--line);margin:6px 4px}
+  .open-menu .om-import{color:var(--accent);font-weight:600}
   tr.flag-sim td{background:#FDF7EA}
   tr.flag-sim .st-no{color:#8A5A12}
 
@@ -318,7 +382,10 @@
   .shot-table .st-no{font-weight:700;white-space:nowrap}
   .shot-table .st-tc{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap}
   .shot-table .st-ch{font-weight:600;font-size:12px}
-  .shot-table textarea{min-height:54px;font-size:12.5px;padding:7px 9px}
+  .shot-table textarea{min-height:54px;height:54px;overflow-y:auto;font-size:12.5px;padding:7px 9px}
+  .shot-table textarea:focus{overflow-y:hidden}
+  .st-world{display:inline-block;font-size:10.5px;font-weight:600;color:var(--accent);background:var(--accent-soft,#EEF2FF);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:2px 0 4px}
+  .world-tag{display:inline-block;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft,#EEF2FF);border:1px solid var(--line);border-radius:6px;padding:1px 8px;margin-left:8px;vertical-align:middle}
   .st-narr{font-style:italic;color:var(--ink-soft);font-size:12px;margin-bottom:4px}
   .st-scroll{overflow-x:auto}
 
@@ -339,7 +406,13 @@
   <header class="masthead">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <p class="kicker" style="margin-bottom:0">Narration → AI Video</p>
-      <button class="ghost tiny" id="newProjBtn" title="Clear everything and start over">＋ New project</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="ghost tiny" id="newProjBtn" title="Clear everything and start over">＋ New project</button>
+        <div style="position:relative">
+          <button class="ghost tiny" id="openMenuBtn" aria-haspopup="true" aria-expanded="false" title="Open a saved project or import a backup">Open ▾</button>
+          <div id="openMenu" class="open-menu hidden" role="menu"></div>
+        </div>
+      </div>
     </div>
     <h1 style="margin-top:14px">Script to Shot Prompts</h1>
     <p class="lede">Paste a narration script and this builds a tidy <b>super-prompt</b> for your own AI chat. Run it there, paste the result back, and get an editable, exportable shot list of <b>image</b> and <b>video</b> prompts — consistent across shots. No keys, no API, no cost.</p>
@@ -497,9 +570,11 @@
   <section id="resultSection" class="hidden">
     <p class="step-tag">Step 4 — Your shot list</p>
     <h2 id="resultTitle">Shots</h2>
+    <div id="truncNote" class="hidden"></div>
     <div id="verbatimNote" class="hidden"></div>
     <div id="hooksBox" class="hidden"></div>
     <div id="transBox" class="bible hidden"></div>
+    <div id="worldsBox" class="bible hidden"></div>
     <div id="bibleBox" class="bible hidden"></div>
 
     <div class="row-spread" id="shotToolbar">
@@ -507,6 +582,13 @@
         <button class="ghost" id="copyImgAll">Copy all image prompts</button>
         <button class="ghost" id="copyVidAll">Copy all video prompts</button>
         <button class="accent" id="copyBrief">Copy Agent Brief</button>
+        <div style="position:relative;display:inline-block">
+          <button class="ghost" id="copyNarrBtn" aria-haspopup="true" aria-expanded="false">Copy narration ▾</button>
+          <div id="narrMenu" class="open-menu hidden" role="menu" style="left:0;right:auto">
+            <button class="om-item" role="menuitem" data-narr="shot">Per shot (numbered)</button>
+            <button class="om-item" role="menuitem" data-narr="para">As one paragraph</button>
+          </div>
+        </div>
       </div>
       <div class="seg" role="tablist" aria-label="View">
         <button id="viewCards" class="seg-btn active">Cards</button>
@@ -514,6 +596,7 @@
       </div>
     </div>
 
+    <div id="lintNote" class="hidden"></div>
     <div id="shots"></div>
     <hr class="divider" />
     <div class="row-spread">
@@ -544,17 +627,13 @@
       <button class="ghost" id="loadProj">Load</button>
       <button class="ghost" id="delProj">Delete</button>
     </div>
-    <label for="importBtn" style="margin-top:16px">From a backup file</label>
-    <div class="btn-row" style="margin-top:6px">
-      <button class="ghost" id="importBtn">⤒ Import backup (HTML / JSON)</button>
-      <input type="file" id="importFile" accept=".html,.htm,.json,application/json,text/html" class="hidden">
-    </div>
-    <p class="hint" style="margin-top:12px"><b>Load</b> restores a project saved in this browser. <b>Import</b> restores from a downloaded HTML / JSON backup file, so it works across devices. Your latest work also auto-restores on reload.</p>
+    <input type="file" id="importFile" accept=".html,.htm,.json,application/json,text/html" class="hidden">
+    <p class="hint" style="margin-top:16px"><b>Load</b> restores a project saved in this browser. To restore from a downloaded HTML / JSON backup (works across devices), use <b>Import</b> in the <b>Open</b> menu at the top of the page. Your latest work also auto-restores on reload.</p>
   </section>
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.9.2</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.13.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -569,7 +648,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.9.2";   // built-with version, stamped into exports
+const APP_VERSION = "1.13.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -618,7 +697,7 @@ $("stripOptional").addEventListener("change", updateStats);
 
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
-  "Cinematic": "Anamorphic lens, shallow depth of field, motivated practical lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, 2.39:1 widescreen composition, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
+  "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, 2.39:1 widescreen composition, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -733,6 +812,9 @@ const SCHEMA_FULL = `{
   "summary": "string or null",
   "hooks": ["3 short punchy thumbnail/title hooks, strongest first"],
   "descriptions": ["3 short video descriptions (1-2 sentences each), strongest first"],
+  "worlds": [
+    { "name": "short world label", "description": "its setting, era, the light sources that fit it, who is present, and what would be out of place there" }
+  ],
   "consistency_bible": {
     "subjects": ["fixed visual descriptors for each recurring subject/character"],
     "setting": "string",
@@ -742,6 +824,7 @@ const SCHEMA_FULL = `{
   "shots": [
     {
       "n": 1,
+      "world": "the world name this shot belongs to",
       "timecode": "0:00-0:04",
       "narration": "the narration line for this shot",
       "characters": "named characters visible in this shot, comma-separated, or 'No character'",
@@ -755,6 +838,9 @@ const SCHEMA_PASS = `{
   "detected_language": "string",
   "hooks": ["3 short punchy thumbnail/title hooks, strongest first"],
   "descriptions": ["3 short video descriptions (1-2 sentences each), strongest first"],
+  "worlds": [
+    { "name": "short world label", "description": "its setting, era, the light sources that fit it, who is present, and what would be out of place there" }
+  ],
   "consistency_bible": {
     "subjects": ["fixed visual descriptors for each recurring subject/character"],
     "setting": "string",
@@ -764,6 +850,7 @@ const SCHEMA_PASS = `{
   "shots": [
     {
       "n": 1,
+      "world": "the world name this shot belongs to",
       "characters": "named characters visible in this shot, comma-separated, or 'No character'",
       "image_prompt": "string",
       "video_prompt": "string"
@@ -781,7 +868,13 @@ function modeRules(mode, clip){
 }
 
 const DEPICTION_RULES =
-`DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
+`WORLD(S) — do this first
+- Identify the distinct world(s) the narration moves through. A world = a setting + time period + who and what belongs in it. Many scripts have ONE world; some shift between worlds (e.g. an ancient story and its present-day parallel, a "then vs now", a flashback). Detect this from the narration's content, tense, and references ("today", "now", "you").
+- For EACH world, DERIVE from the narration (do not assume): its setting and era, the light sources that genuinely fit it (e.g. sun / fire vs lamps / neon / screens), who is present, and what would be OUT OF PLACE there (anachronisms, structures, crowds, objects that don't belong). Put these in "worlds" with a short name + description.
+- Assign EVERY shot to the world it belongs to (its "world").
+- GROUND every image_prompt in ITS world — the world's setting and its fitting light, even for close-ups (a close-up still shows where it is) — and exclude whatever is out-of-place for that world. The exclusions are derived per world: a primeval-garden world excludes buildings and artificial light; a modern world includes them. Never impose one fixed world on all shots.
+
+DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
 - Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography UNLESS that is clearly the single best image for that shot — and NEVER in two consecutive or visually similar shots. (Generators render text as garbled nonsense, so avoid text imagery by default.)
 - VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
@@ -826,7 +919,7 @@ ${DEPICTION_RULES}
 SHOTS (the narration is given and fixed — write prompts for each):
 ${shotList}
 
-For EACH shot number above, return: "n" (the same number), "characters" (named character(s) actually visible in that shot's image, using the bible names, comma-separated; if none, exactly "No character"), "image_prompt", and "video_prompt". Keep the visual style explicit in image_prompt.
+For EACH shot number above, return: "n" (the same number), "world" (the name of the world this shot belongs to), "characters" (named character(s) actually visible in that shot's image, using the bible names, comma-separated; if none, exactly "No character"), "image_prompt", and "video_prompt". Keep the visual style explicit in image_prompt.
 
 TITLES & DESCRIPTIONS
 - "hooks": 3 short, punchy lines that work as a thumbnail caption AND as a video title (each roughly under 60 characters), strongest first.
@@ -875,7 +968,7 @@ SHOT RULES
 - Treat the (rewritten) narration as one continuous voiceover. A shot is a VISUAL cut — not necessarily one sentence.
 - Fill each shot with about ${wordsPerShot} words of narration (≈ ${clip}s of speech at ${wpm} wpm): merge short sentences; split an over-long sentence across shots at natural phrase points.
 - Set each shot's "timecode" from its OWN word count (words ÷ ${wpm} × 60 seconds), accumulating down the timeline.
-- For each shot set "characters" to the named character(s) visible in that shot's image (comma-separated, bible names). If none, write exactly "No character".
+- For each shot set "world" to the world it belongs to, and "characters" to the named character(s) visible in that shot's image (comma-separated, bible names). If none, write exactly "No character".
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
 
@@ -940,6 +1033,7 @@ $("parseBtn").addEventListener("click", () => {
       const m = byN[seg.n] || data.shots[i] || {};
       return {
         n: seg.n, timecode: seg.timecode, narration: seg.narration,
+        world: m.world || "",
         characters: (m.characters && String(m.characters).trim()) ? m.characters : "No character",
         image_prompt: m.image_prompt || "", video_prompt: m.video_prompt || ""
       };
@@ -949,6 +1043,16 @@ $("parseBtn").addEventListener("click", () => {
   }
 
   RESULT = data;
+  // completeness check: empty prompts usually mean the model's reply was cut off
+  let emptyImg = 0, emptyVid = 0;
+  RESULT.shots.forEach(sh => {
+    if (!String(sh.image_prompt || "").trim()) emptyImg++;
+    if (!String(sh.video_prompt || "").trim()) emptyVid++;
+  });
+  RESULT._parseInfo = {
+    expected: (SEGMENTS && SEGMENTS.length) ? SEGMENTS.length : RESULT.shots.length,
+    got: RESULT.shots.length, emptyImg, emptyVid
+  };
   // append filename instruction to images; in i2v, anchor each video to its keyframe
   const isI2V = $("mode").value === "i2v";
   RESULT.shots.forEach(sh => {
@@ -962,8 +1066,13 @@ $("parseBtn").addEventListener("click", () => {
   renderResult(data);
   saveDraft();
   collapseWorkflow();
-  el.textContent = "Parsed " + data.shots.length + " shots.";
-  el.classList.add("show","ok");
+  if (RESULT._parseInfo.emptyImg){
+    el.textContent = "Parsed " + data.shots.length + " shots — but " + RESULT._parseInfo.emptyImg + " came back empty (see the note above the shots).";
+    el.classList.add("show","error");
+  } else {
+    el.textContent = "Parsed " + data.shots.length + " shots.";
+    el.classList.add("show","ok");
+  }
   $("resultSection").classList.remove("hidden");
   $("resultSection").scrollIntoView({behavior:"smooth", block:"start"});
 });
@@ -974,6 +1083,19 @@ function escapeHTML(s){ return String(s==null?"":s).replace(/[&<>"]/g, c => ({"&
 function renderResult(d){
   const lang = d.detected_language ? (" · detected " + d.detected_language) : "";
   $("resultTitle").textContent = d.shots.length + " shots" + lang;
+
+  // completeness / truncation banner
+  const tn = $("truncNote");
+  const pi = d._parseInfo;
+  if (pi && pi.emptyImg){
+    const shortfall = (pi.expected > pi.got) ? (" You got " + pi.got + " of " + pi.expected + " shots.") : "";
+    tn.className = "lint-note warn";
+    tn.textContent = "⚠ Looks cut off: " + pi.emptyImg + " shot" + (pi.emptyImg>1?"s":"") +
+      " came back with no image prompt." + shortfall +
+      " Models truncate long replies — re-run it, or split the script into shorter parts and paste again. The empty shots are flagged below.";
+  } else {
+    tn.className = "hidden"; tn.textContent = "";
+  }
 
   const vn = $("verbatimNote");
   if (d._verbatim){
@@ -1009,6 +1131,20 @@ function renderResult(d){
   if (tbody){ tb.className = "ccard collapsed"; tb.innerHTML = cardHead(tTitle) + '<div class="cc-body">' + tbody + '</div>'; }
   else { tb.className = "hidden"; tb.innerHTML = ""; }
 
+  // worlds (collapsible, default collapsed) — the world(s) the model inferred from the script
+  const wb = $("worldsBox");
+  const worlds = Array.isArray(d.worlds) ? d.worlds.filter(w => w && (w.name || w.description)) : [];
+  if (worlds.length){
+    const wp = worlds.map(w =>
+      '<p><b>' + escapeHTML(w.name || "World") + ':</b> ' + escapeHTML(w.description || "") + '</p>'
+    ).join("");
+    const note = worlds.length > 1
+      ? '<p style="color:var(--ink-soft);font-size:12.5px;margin-top:8px">This script spans ' + worlds.length + ' worlds — each shot is grounded in its own. Check the tags on the shots below; if one is mis-assigned, the world was inferred from the script.</p>'
+      : '';
+    wb.className = "ccard collapsed";
+    wb.innerHTML = cardHead("World" + (worlds.length > 1 ? "s (" + worlds.length + ")" : "")) + '<div class="cc-body">' + wp + note + '</div>';
+  } else { wb.className = "hidden"; wb.innerHTML = ""; }
+
   // consistency bible (collapsible, default collapsed)
   const bb = $("bibleBox"), cb = d.consistency_bible || {};
   const bp = [];
@@ -1040,6 +1176,39 @@ function similarFlags(shots){
   });
   return flags;
 }
+
+/* ---------- prompt linter (advisory, non-blocking) ---------- */
+const LINT = {
+  MAX_WORDS: 75,   // over this: dilution risk
+  MIN_WORDS: 6,    // image prompt this short likely lacks setting/grounding
+  TEXT: /\b(text|texts|caption|captions|subtitle|subtitles|words|writing|written|lettering|letters|typography|fonts?|scrolls?|signage|banners?|headlines?|inscriptions?|paragraphs?|sentences?|title card|watermark|book page|page of)\b/i,
+  PLACEHOLDER: /\b(see above|same as (?:above|before|shot)|as (?:above|before)|n\/a|tbd|todo|placeholder|insert |lorem ipsum)\b|\[[^\]]*\]/i
+};
+function cleanImg(s){ return String(s||"").replace(/make the file name[^.]*\.?/i, "").trim(); }
+function wordCount(s){ return (String(s||"").trim().match(/\S+/g) || []).length; }
+// Returns an array of {lab, t} issues for one shot. Empty array = clean.
+function lintShot(sh){
+  const issues = [];
+  const img = cleanImg(sh.image_prompt);
+  const vid = String(sh.video_prompt || "").trim();
+  if (!img) issues.push({ lab:"empty", t:"no image prompt" });
+  if (!vid) issues.push({ lab:"empty", t:"no video prompt" });
+  if (img){
+    if (LINT.PLACEHOLDER.test(img)) issues.push({ lab:"placeholder", t:"looks like a placeholder, not a finished prompt" });
+    if (LINT.TEXT.test(img)) issues.push({ lab:"text", t:"may render on-screen text (generators garble text)" });
+    const iw = wordCount(img);
+    if (iw > LINT.MAX_WORDS) issues.push({ lab:"long", t:"very long (" + iw + " words) — detail may dilute" });
+    else if (iw < LINT.MIN_WORDS) issues.push({ lab:"short", t:"very short (" + iw + " words) — may lack setting" });
+  }
+  return issues;
+}
+function lintShots(shots){ return shots.map(lintShot); }
+function lintChips(issues){
+  if (!issues || !issues.length) return "";
+  return issues.map(x =>
+    '<span class="lint-badge" title="' + escapeHTML(x.t) + '">⚠ ' + escapeHTML(x.lab) + '</span>'
+  ).join("");
+}
 function cellField(key, i, val){
   return '<div class="pf-label" style="justify-content:flex-end;margin-bottom:4px"><button class="ghost tiny" data-copy="' + key + '" data-i="' + i + '">Copy</button></div>' +
          '<textarea data-i="' + i + '" data-k="' + key + '">' + escapeHTML(val || "") + '</textarea>';
@@ -1047,15 +1216,19 @@ function cellField(key, i, val){
 function renderShots(d){
   const host = $("shots"); host.innerHTML = "";
   const flags = similarFlags(d.shots);
+  const lint = lintShots(d.shots);
+  const multiWorld = Array.isArray(d.worlds) && d.worlds.filter(w => w && (w.name || w.description)).length > 1;
+  const wtag = sh => (multiWorld && sh.world) ? '<span class="world-tag">' + escapeHTML(sh.world) + '</span>' : '';
   if (VIEW_MODE === "table"){
     const rows = d.shots.map((sh,i) => {
       const n = sh.n ?? i+1, flagged = flags[i] != null;
       const badge = flagged ? '<span class="sim-badge">⚠ #' + flags[i] + '</span>' : '';
       const chars = escapeHTML(sh.characters && String(sh.characters).trim() ? sh.characters : "No character");
+      const wrow = (multiWorld && sh.world) ? '<div class="st-world">' + escapeHTML(sh.world) + '</div>' : '';
       return '<tr id="shotrow-' + i + '"' + (flagged ? ' class="flag-sim"' : '') + '>' +
-        '<td class="st-no">' + n + ' ' + badge + '</td>' +
+        '<td class="st-no">' + n + ' ' + badge + lintChips(lint[i]) + '</td>' +
         '<td class="st-tc">' + escapeHTML(sh.timecode || "") + '</td>' +
-        '<td><div class="st-ch">' + chars + '</div><div class="st-narr">' + (sh.narration ? escapeHTML(sh.narration) : '') + '</div></td>' +
+        '<td><div class="st-ch">' + chars + '</div>' + wrow + '<div class="st-narr">' + (sh.narration ? escapeHTML(sh.narration) : '') + '</div></td>' +
         '<td>' + cellField("image_prompt", i, sh.image_prompt) + '</td>' +
         '<td>' + cellField("video_prompt", i, sh.video_prompt) + '</td></tr>';
     }).join("");
@@ -1070,7 +1243,7 @@ function renderShots(d){
       card.className = "shot" + (flagged ? " flag-sim" : "");
       card.id = "shotrow-" + i;
       card.innerHTML =
-        '<div class="shot-head"><span class="shot-no">Shot ' + n + badge + '</span>' +
+        '<div class="shot-head"><span class="shot-no">Shot ' + n + ' ' + wtag(sh) + badge + lintChips(lint[i]) + '</span>' +
         '<span class="shot-tc">' + escapeHTML(sh.timecode || "") + '</span></div>' +
         '<div class="shot-narr">' +
           '<div class="nrow"><span class="narr-tag" style="margin-bottom:0">Narration</span>' +
@@ -1082,10 +1255,29 @@ function renderShots(d){
       host.appendChild(card);
     });
   }
+  // linter summary (advisory, non-blocking)
+  let lShots = 0, lIssues = 0;
+  lint.forEach(arr => { if (arr.length){ lShots++; lIssues += arr.length; } });
+  const ln = $("lintNote");
+  if (lIssues){
+    ln.className = "lint-note warn";
+    ln.textContent = "⚠ Linter: " + lIssues + " issue" + (lIssues>1?"s":"") + " across " + lShots + " shot" + (lShots>1?"s":"") + " — advisory only. Hover a ⚠ tag to see why; fix or ignore before generating.";
+  } else {
+    ln.className = "lint-note ok";
+    ln.textContent = "✓ Linter: no prompt issues flagged.";
+  }
   // wire textareas + copy (works for both layouts)
+  const inTable = VIEW_MODE === "table";
   host.querySelectorAll("textarea[data-i]").forEach(ta => {
-    autoGrow(ta);
-    ta.addEventListener("input", () => { RESULT.shots[+ta.dataset.i][ta.dataset.k] = ta.value; autoGrow(ta); });
+    if (!inTable) autoGrow(ta);                      // cards: always fit; table: stay collapsed by default
+    ta.addEventListener("input", () => {
+      RESULT.shots[+ta.dataset.i][ta.dataset.k] = ta.value;
+      if (!inTable || document.activeElement === ta) autoGrow(ta);   // grow while typing
+    });
+    if (inTable){
+      ta.addEventListener("focus", () => autoGrow(ta));               // expand on focus
+      ta.addEventListener("blur", () => { ta.style.height = ""; });   // shrink back to min on blur
+    }
   });
   host.querySelectorAll("button[data-copy]").forEach(b => {
     b.addEventListener("click", () => copy(RESULT.shots[+b.dataset.i][b.dataset.copy] || "", "Copied"));
@@ -1157,6 +1349,31 @@ $("copyImgAll").addEventListener("click", () => { if (RESULT) copy(numberedList(
 $("copyVidAll").addEventListener("click", () => { if (RESULT) copy(numberedList("video_prompt"), "All video prompts copied"); });
 $("copyBrief").addEventListener("click", () => { if (RESULT) copy(buildAgentBrief(), "Agent Brief copied"); });
 
+/* ---------- Copy narration dropdown (per shot / paragraph), sourced from shot narration ---------- */
+function paragraphNarration(){
+  return RESULT ? RESULT.shots.map(s => String(s.narration || "").trim()).filter(Boolean).join(" ") : "";
+}
+(function(){
+  const m = $("narrMenu"), b = $("copyNarrBtn");
+  function toggle(show){
+    const willShow = (show != null) ? show : m.classList.contains("hidden");
+    if (willShow){ m.classList.remove("hidden"); b.setAttribute("aria-expanded","true"); }
+    else { m.classList.add("hidden"); b.setAttribute("aria-expanded","false"); }
+  }
+  b.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+  m.addEventListener("click", (e) => {
+    const it = e.target.closest(".om-item"); if (!it) return;
+    if (!RESULT){ toggle(false); return; }
+    if (it.dataset.narr === "shot") copy(numberedList("narration"), "Narration copied (per shot)");
+    else copy(paragraphNarration(), "Narration copied (paragraph)");
+    toggle(false);
+  });
+  document.addEventListener("click", (e) => {
+    if (!m.classList.contains("hidden") && !m.contains(e.target) && e.target !== b) toggle(false);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggle(false); });
+})();
+
 /* ---------- view toggle ---------- */
 $("viewCards").addEventListener("click", () => { if (VIEW_MODE !== "cards"){ VIEW_MODE = "cards"; if (RESULT) renderShots(RESULT); saveDraft(); } });
 $("viewTable").addEventListener("click", () => { if (VIEW_MODE !== "table"){ VIEW_MODE = "table"; if (RESULT) renderShots(RESULT); saveDraft(); } });
@@ -1216,15 +1433,47 @@ $("saveProj").addEventListener("click", () => {
   const all = getProjects(); all[name] = currentState();
   setProjects(all); refreshProjectList(); toast("Saved “" + name + "”");
 });
-$("loadProj").addEventListener("click", () => {
-  const name = $("projLoad").value; if (!name) return;
+function loadProjectByName(name){
   const p = getProjects()[name]; if (!p) return;
   applyState(p, name); saveDraft(); toast("Loaded “" + name + "”");
+}
+$("loadProj").addEventListener("click", () => {
+  const name = $("projLoad").value; if (!name) return;
+  loadProjectByName(name);
 });
 $("delProj").addEventListener("click", () => {
   const name = $("projLoad").value; if (!name) return;
   const all = getProjects(); delete all[name]; setProjects(all); refreshProjectList(); toast("Deleted “" + name + "”");
 });
+
+/* ---------- top "Open ▾" menu: start-of-session entry points (load + import) ---------- */
+function buildOpenMenu(){
+  const names = Object.keys(getProjects());
+  const rows = names.length
+    ? names.map(n => '<button class="om-item" role="menuitem" data-name="' + encodeURIComponent(n) + '">' + escapeHTML(n) + '</button>').join("")
+    : '<div class="om-empty">No saved projects on this device</div>';
+  $("openMenu").innerHTML =
+    '<div class="om-label">Open a saved project</div>' + rows +
+    '<div class="om-sep"></div>' +
+    '<button class="om-item om-import" role="menuitem" data-act="import">⤒ Import backup (HTML / JSON)…</button>';
+}
+function toggleOpenMenu(show){
+  const m = $("openMenu"), b = $("openMenuBtn");
+  const willShow = (show != null) ? show : m.classList.contains("hidden");
+  if (willShow){ buildOpenMenu(); m.classList.remove("hidden"); b.setAttribute("aria-expanded","true"); }
+  else { m.classList.add("hidden"); b.setAttribute("aria-expanded","false"); }
+}
+$("openMenuBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleOpenMenu(); });
+$("openMenu").addEventListener("click", (e) => {
+  const item = e.target.closest(".om-item"); if (!item) return;
+  if (item.dataset.act === "import"){ toggleOpenMenu(false); $("importFile").click(); return; }
+  if (item.dataset.name){ loadProjectByName(decodeURIComponent(item.dataset.name)); toggleOpenMenu(false); }
+});
+document.addEventListener("click", (e) => {
+  const m = $("openMenu"); if (!m || m.classList.contains("hidden")) return;
+  if (!m.contains(e.target) && e.target.id !== "openMenuBtn") toggleOpenMenu(false);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleOpenMenu(false); });
 
 /* ---------- working draft: auto-save so closing the browser doesn't lose work ---------- */
 const DKEY = "svp_draft_v1";
@@ -1382,7 +1631,6 @@ let toastT;
 function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800); }
 
 /* ---------- import backup (HTML or JSON) ---------- */
-$("importBtn").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
