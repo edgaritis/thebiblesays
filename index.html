@@ -5,6 +5,12 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.16.1
+    - "Biblical cinematic" recipe revised after live testing: (1) natural,
+      true-to-life color and exposure instead of the heavy teal-amber grade
+      that was darkening every frame, and (2) the faceless rule rewritten as
+      a conditional so it stops forcing a person into every shot — the style
+      now favors landscapes and keeps any figure small within a vast scene.
   v1.16.0
     - New "Biblical cinematic" visual style: an epic, reverent cinematic
       look with channel rules baked in — faceless figures (from behind, in
@@ -778,7 +784,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.16.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.16.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -793,7 +799,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.16.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.16.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -850,7 +856,7 @@ $("stripOptional").addEventListener("change", updateStats);
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
   "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
-  "Biblical cinematic": "Epic cinematic look on an anamorphic lens, shallow depth of field, naturalistically motivated lighting — warm golden key light, soft god-rays and atmospheric haze, deep natural shadows — with a rich but believable color grade leaning warm amber against teal-blue shadow, fine film grain, reverent sacred and timeless mood, vast scale and deliberate negative space. PEOPLE ARE FACELESS: show figures from behind, in silhouette, far off, or as hands, feet, or partial body only — never a recognizable human face. The ONE exception is the face of Jesus, which may be shown, depicted reverently and never distorted. No on-screen text, letters, captions, numbers, watermarks, or logos. No modern or anachronistic elements (no cars, phones, power lines, modern signage, or modern buildings); ancient and biblical structures are fine when the scene calls for them. Compose full-frame and fill it edge to edge. Avoid: letterbox or black cinematic bars and matte borders, any visible human face except Jesus, malformed or extra fingers, rendered text, plastic CGI skin, oversaturated color, flat even lighting.",
+  "Biblical cinematic": "Cinematic in craft — anamorphic lens, shallow depth of field, naturalistically motivated lighting, careful composition, fine film grain, vast scale and deliberate negative space — but NATURAL, true-to-life color and exposure: the colors and brightness the eye actually sees in that light, realistic white balance, natural contrast. NOT a heavy cinematic grade. Reverent, sacred, timeless mood. FAVOR THE LANDSCAPE: most shots should be the world itself — wilderness, desert, mountains, sea, sky, the night heavens — or a close natural detail or single symbolic object, with NO person in frame. When a person does appear, keep them SMALL within a vast landscape and never show a recognizable face: from behind, in silhouette, distant, or as hands/feet only. The sole exception is the face of Jesus, shown reverently. Do not put a human figure in every shot. No on-screen text, letters, captions, numbers, watermarks, or logos. No modern or anachronistic elements; ancient and biblical structures are fine when the scene calls for them. Compose full-frame, edge to edge. Avoid: heavy teal-and-orange grading, crushed or muddy shadows, an overall dark or murky look, oversaturation, a person crammed into every frame, default tight close-ups, letterbox or black bars, any visible human face except Jesus, malformed or extra fingers, rendered text, plastic CGI skin, flat even lighting.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
