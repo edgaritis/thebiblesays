@@ -5,6 +5,17 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.16.0
+    - New "Biblical cinematic" visual style: an epic, reverent cinematic
+      look with channel rules baked in — faceless figures (from behind, in
+      silhouette, hands only) with the sole exception of the face of Jesus,
+      no on-screen text, and no modern/anachronistic elements (ancient and
+      biblical structures still allowed). Era/setting is deliberately left
+      out so per-shot world grounding still decides ancient vs. modern.
+    - Black-bar fix: the Cinematic recipe's "2.39:1 widescreen" wording was
+      making generators bake letterbox bars into 16:9 frames; replaced with
+      edge-to-edge framing, and added a global FULL-FRAME / no-bars rule to
+      the depiction instructions so no style produces letterboxing.
   v1.15.1
     - Series library panel is now collapsible and collapsed by default, so
       it stays out of the way until you open it (same click-to-expand
@@ -520,6 +531,7 @@
         <label for="style">Visual style</label>
         <select id="style">
           <option>Cinematic</option>
+          <option>Biblical cinematic</option>
           <option>Photorealistic</option>
           <option>Anime</option>
           <option>3D animated (Pixar-like)</option>
@@ -766,7 +778,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.15.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.16.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -781,7 +793,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.15.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.16.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -837,7 +849,8 @@ $("stripOptional").addEventListener("change", updateStats);
 
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
-  "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, 2.39:1 widescreen composition, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
+  "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
+  "Biblical cinematic": "Epic cinematic look on an anamorphic lens, shallow depth of field, naturalistically motivated lighting — warm golden key light, soft god-rays and atmospheric haze, deep natural shadows — with a rich but believable color grade leaning warm amber against teal-blue shadow, fine film grain, reverent sacred and timeless mood, vast scale and deliberate negative space. PEOPLE ARE FACELESS: show figures from behind, in silhouette, far off, or as hands, feet, or partial body only — never a recognizable human face. The ONE exception is the face of Jesus, which may be shown, depicted reverently and never distorted. No on-screen text, letters, captions, numbers, watermarks, or logos. No modern or anachronistic elements (no cars, phones, power lines, modern signage, or modern buildings); ancient and biblical structures are fine when the scene calls for them. Compose full-frame and fill it edge to edge. Avoid: letterbox or black cinematic bars and matte borders, any visible human face except Jesus, malformed or extra fingers, rendered text, plastic CGI skin, oversaturated color, flat even lighting.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -1151,7 +1164,8 @@ DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
 - Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography UNLESS that is clearly the single best image for that shot — and NEVER in two consecutive or visually similar shots. (Generators render text as garbled nonsense, so avoid text imagery by default.)
 - VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
-- Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.`;
+- Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.
+- FULL-FRAME: render every image edge to edge at the target aspect ratio. Do NOT add letterbox bars, black bars, cinemascope or matte borders, or framing strips of any kind — the picture must reach all four edges.`;
 
 function buildSuperPrompt(script){
   const translate = $("translate").checked;
