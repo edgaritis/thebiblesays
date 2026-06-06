@@ -5,6 +5,25 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.17.0
+    - Renamed the "Biblical cinematic" style to "Photorealistic Biblical
+      Landscape" (the word "cinematic" was pushing the model toward a
+      stylized movie look rather than real, eye-level photography).
+    - New recipe: photorealistic / true-to-life, with a per-shot subject
+      rule — default to landscape with no person; show a small faceless
+      silhouette only when the line is about a person; show the face of
+      Jesus only when the line names Him; otherwise the landscape. Soft
+      target of ~7 in 10 shots with no person (a lean, not a hard quota —
+      the model cannot count shots; the script still drives the real ratio).
+    - FIXED the recipe-routing bug that silently sent the wrong style to
+      the model: the style dropdown is now the single source of truth.
+      The recipe box is READ-ONLY for presets (visible, but it can no
+      longer drift out of sync); it is editable only when "Custom…" is
+      chosen. Preset recipe text is no longer restored from a saved draft,
+      so style improvements now reach existing projects instead of being
+      pinned to stale text.
+    - FIXED New Project hard-resetting the style to "Cinematic"; it now
+      keeps the last-used style (or the series default).
   v1.16.1
     - "Biblical cinematic" recipe revised after live testing: (1) natural,
       true-to-life color and exposure instead of the heavy teal-amber grade
@@ -537,7 +556,7 @@
         <label for="style">Visual style</label>
         <select id="style">
           <option>Cinematic</option>
-          <option>Biblical cinematic</option>
+          <option>Photorealistic Biblical Landscape</option>
           <option>Photorealistic</option>
           <option>Anime</option>
           <option>3D animated (Pixar-like)</option>
@@ -549,7 +568,7 @@
           <option>Minimalist / clean</option>
           <option value="__custom">Custom…</option>
         </select>
-        <div id="styleHint" style="margin-top:8px;font-size:12px;color:var(--ink-soft)">This recipe is sent to the model — edit it to fine-tune the look.</div>
+        <div id="styleHint" style="margin-top:8px;font-size:12px;color:var(--ink-soft)">This is the exact style sent to the model (read-only). Pick Custom… to write your own.</div>
         <textarea id="styleRecipe" style="margin-top:6px;min-height:90px;font-size:13.5px" placeholder="Describe the visual style: lens, lighting, color, texture, composition, mood. Add an 'Avoid:' line for what to keep out."></textarea>
       </div>
 
@@ -784,7 +803,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.16.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.17.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -799,7 +818,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.16.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.17.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -856,7 +875,7 @@ $("stripOptional").addEventListener("change", updateStats);
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
   "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
-  "Biblical cinematic": "Cinematic in craft — anamorphic lens, shallow depth of field, naturalistically motivated lighting, careful composition, fine film grain, vast scale and deliberate negative space — but NATURAL, true-to-life color and exposure: the colors and brightness the eye actually sees in that light, realistic white balance, natural contrast. NOT a heavy cinematic grade. Reverent, sacred, timeless mood. FAVOR THE LANDSCAPE: most shots should be the world itself — wilderness, desert, mountains, sea, sky, the night heavens — or a close natural detail or single symbolic object, with NO person in frame. When a person does appear, keep them SMALL within a vast landscape and never show a recognizable face: from behind, in silhouette, distant, or as hands/feet only. The sole exception is the face of Jesus, shown reverently. Do not put a human figure in every shot. No on-screen text, letters, captions, numbers, watermarks, or logos. No modern or anachronistic elements; ancient and biblical structures are fine when the scene calls for them. Compose full-frame, edge to edge. Avoid: heavy teal-and-orange grading, crushed or muddy shadows, an overall dark or murky look, oversaturation, a person crammed into every frame, default tight close-ups, letterbox or black bars, any visible human face except Jesus, malformed or extra fingers, rendered text, plastic CGI skin, flat even lighting.",
+  "Photorealistic Biblical Landscape": "Photorealistic — looks like a real photograph, not a movie still or a render. True-to-life color and exposure: the colors and brightness the human eye actually sees, realistic white balance, natural contrast, natural light only (sun, moon, stars, fire). Reverent, sacred, timeless mood. DECIDE EACH SHOT\u2019S SUBJECT IN THIS ORDER: (1) DEFAULT to the natural world or a symbol with NO person \u2014 desert, wilderness, mountains, valleys, sea, rivers, sky and the night heavens, or a single symbolic object or close natural detail; most shots are this. (2) Show a human ONLY when the line is explicitly about a person\u2019s body, posture, or action (kneeling, weeping, walking, lying, reaching) \u2014 then render them SMALL within a vast landscape, distant, from behind, or in silhouette, in period dress, never a recognizable face. (3) Show the FACE OF JESUS only when the line is explicitly about Jesus, Christ, or the Son \u2014 reverent and undistorted; any other divine presence is shown as light, not a face. (4) If a line could go either way, choose the landscape. Across the whole video aim for roughly 7 in 10 shots with no person; never force a figure into a shot the line does not call for. No modern or man-made anachronisms (cars, phones, power lines, electric or artificial lighting, modern buildings, modern clothing, signage); ancient and biblical structures are fine when the scene calls for them. No on-screen text, letters, captions, numbers, watermarks, or logos. Compose full-frame, edge to edge. Avoid: a cinematic or movie-still look, heavy or teal-and-orange color grading, crushed or muddy shadows, an overall dark or murky look, oversaturation, a person in every frame, default tight close-ups, letterbox or black bars, any visible human face except Jesus, modern objects, malformed or extra fingers, rendered text, plastic CGI skin, flat even lighting.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -869,20 +888,27 @@ const STYLE_RECIPES = {
 };
 function loadStyleRecipe(){
   const v = $("style").value;
-  $("styleRecipe").value = (v === "__custom") ? "" : (STYLE_RECIPES[v] || "");
-  $("styleRecipe").placeholder = (v === "__custom")
-    ? "Write your own style: lens, lighting, color, texture, composition, mood. Add an 'Avoid:' line."
-    : "Edit this recipe to fine-tune the look.";
+  const ta = $("styleRecipe");
+  if (v === "__custom"){
+    ta.readOnly = false;
+    ta.placeholder = "Write your own style: lens, lighting, color, texture, composition, mood. Add an 'Avoid:' line.";
+  } else {
+    ta.value = STYLE_RECIPES[v] || "";
+    ta.readOnly = true;
+  }
+  $("styleHint").textContent = (v === "__custom")
+    ? "Custom style — write your own; this exact text is sent to the model."
+    : "This is the exact style sent to the model (read-only). Pick Custom… to write your own.";
+  if (typeof autoGrow === "function") autoGrow(ta);
 }
 $("style").addEventListener("change", loadStyleRecipe);
 
 function reflectSummarize(){ $("sumNote").classList.toggle("hidden", !$("summarize").checked); }
 $("summarize").addEventListener("change", reflectSummarize);
 function currentStyle(){
-  const r = $("styleRecipe").value.trim();
-  if (r) return r;
   const v = $("style").value;
-  return (v === "__custom") ? "Cinematic" : (STYLE_RECIPES[v] || v);
+  if (v === "__custom") return $("styleRecipe").value.trim() || "Cinematic";
+  return STYLE_RECIPES[v] || v;
 }
 
 /* ---------- series library (persistent, cross-project) ---------- */
@@ -1705,10 +1731,12 @@ function applyState(p, projName){
   const s = p.settings || {};
   $("translate").checked = !!s.translate; $("summarize").checked = !!s.summarize; reflectSummarize();
   $("targetLang").value = s.targetLang || "English";
-  $("style").value = s.style || "Cinematic";
-  if (typeof s.styleRecipe === "string") $("styleRecipe").value = s.styleRecipe;
-  else if (s.style === "__custom" && s.styleCustom) $("styleRecipe").value = s.styleCustom;
-  else loadStyleRecipe();
+  let _stName = s.style || "Cinematic";
+  if (_stName === "Biblical cinematic") _stName = "Photorealistic Biblical Landscape";
+  $("style").value = _stName;
+  if ($("style").value !== _stName) $("style").value = "Cinematic";
+  if ($("style").value === "__custom" && typeof s.styleRecipe === "string") $("styleRecipe").value = s.styleRecipe;
+  loadStyleRecipe();
   $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
   $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 5;
   $("stripOptional").checked = !!s.stripOptional;
@@ -1801,10 +1829,10 @@ $("newProjBtn").addEventListener("click", () => {
   if (!confirm("Start a new project? This clears the current script and result.\n(Your saved projects and any downloaded backups are kept.)")) return;
   $("script").value = "";
   $("translate").checked = false; $("summarize").checked = false; reflectSummarize(); $("targetLang").value = "English";
-  $("style").value = "Cinematic"; loadStyleRecipe();
+  loadStyleRecipe();
   $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 5;
   $("stripOptional").checked = false; $("aspect").value = "16:9"; VIEW_MODE = "cards";
-  { const sx0 = getSeries(); if (sx0.styleRecipe) $("styleRecipe").value = sx0.styleRecipe; if (sx0.aspect) $("aspect").value = sx0.aspect; }
+  { const sx0 = getSeries(); if (sx0.styleRecipe){ $("style").value = "__custom"; $("styleRecipe").value = sx0.styleRecipe; loadStyleRecipe(); } if (sx0.aspect) $("aspect").value = sx0.aspect; }
   renderCastSelector({ chars: [], worlds: [] });
   SEGMENTS = null;
   $("rawResult").value = ""; $("projName").value = ""; $("projLoad").value = "";
@@ -2034,6 +2062,7 @@ refreshProjectList();
 loadSeriesDefaultsUI();
 renderSeriesLists();
 restoreDraft();
+loadStyleRecipe();
 reflectSummarize();
 </script>
 </body>
