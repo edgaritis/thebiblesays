@@ -5,6 +5,22 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.18.0
+    - Trimmed the "Photorealistic Biblical Landscape" recipe back to a LOOK
+      description (color, light, mood, the avoid list) the length of the other
+      style presets. The per-shot subject LOGIC was removed from the style: the
+      four-step decision rule and the "7 in 10" target are gone, and so are the
+      example poses (kneeling, weeping, walking, lying, reaching) that were
+      priming the model to put a person in those exact poses in most shots.
+    - Moved the subject PROCESS into the super-prompt depiction rulebook where
+      it belongs: a new rule tells the model not to default to kneeling/lying/
+      praying and to vary the human depiction shot to shot.
+    - Closed the on-screen-text loophole: the old rule allowed text "if it is
+      the single best image," which is what produced title-card and engraved-
+      text frames. Now: no readable words, letters, captions, or numbers in any
+      image, ever.
+    - The style still keeps a short people rule (rare, small, far, from behind
+      or in silhouette, no visible face; Jesus only when the line names Him).
   v1.17.0
     - Renamed the "Biblical cinematic" style to "Photorealistic Biblical
       Landscape" (the word "cinematic" was pushing the model toward a
@@ -803,7 +819,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.17.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.18.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -818,7 +834,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.17.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.18.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -875,7 +891,7 @@ $("stripOptional").addEventListener("change", updateStats);
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
   "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
-  "Photorealistic Biblical Landscape": "Photorealistic — looks like a real photograph, not a movie still or a render. True-to-life color and exposure: the colors and brightness the human eye actually sees, realistic white balance, natural contrast, natural light only (sun, moon, stars, fire). Reverent, sacred, timeless mood. DECIDE EACH SHOT\u2019S SUBJECT IN THIS ORDER: (1) DEFAULT to the natural world or a symbol with NO person \u2014 desert, wilderness, mountains, valleys, sea, rivers, sky and the night heavens, or a single symbolic object or close natural detail; most shots are this. (2) Show a human ONLY when the line is explicitly about a person\u2019s body, posture, or action (kneeling, weeping, walking, lying, reaching) \u2014 then render them SMALL within a vast landscape, distant, from behind, or in silhouette, in period dress, never a recognizable face. (3) Show the FACE OF JESUS only when the line is explicitly about Jesus, Christ, or the Son \u2014 reverent and undistorted; any other divine presence is shown as light, not a face. (4) If a line could go either way, choose the landscape. Across the whole video aim for roughly 7 in 10 shots with no person; never force a figure into a shot the line does not call for. No modern or man-made anachronisms (cars, phones, power lines, electric or artificial lighting, modern buildings, modern clothing, signage); ancient and biblical structures are fine when the scene calls for them. No on-screen text, letters, captions, numbers, watermarks, or logos. Compose full-frame, edge to edge. Avoid: a cinematic or movie-still look, heavy or teal-and-orange color grading, crushed or muddy shadows, an overall dark or murky look, oversaturation, a person in every frame, default tight close-ups, letterbox or black bars, any visible human face except Jesus, modern objects, malformed or extra fingers, rendered text, plastic CGI skin, flat even lighting.",
+  "Photorealistic Biblical Landscape": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: vast natural landscapes and ancient biblical settings, no modern elements. People are rare and never the focus — when the line is about a person, show them small and far, from behind or in silhouette, face never visible; the only face ever shown is Jesus, and only when the line names Him. Avoid: a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -1194,7 +1210,8 @@ const DEPICTION_RULES =
 
 DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
-- Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography UNLESS that is clearly the single best image for that shot — and NEVER in two consecutive or visually similar shots. (Generators render text as garbled nonsense, so avoid text imagery by default.)
+- Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography. NEVER place readable words, letters, captions, numbers, or watermarks anywhere in any image — visualise the meaning instead. (Generators render text as garbled nonsense, and text is not wanted.)
+- When a person is warranted, do NOT default to kneeling, lying down, or praying — choose the action the specific line implies, and vary the human depiction from shot to shot so figures are not all in the same pose.
 - VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
 - Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.
 - FULL-FRAME: render every image edge to edge at the target aspect ratio. Do NOT add letterbox bars, black bars, cinemascope or matte borders, or framing strips of any kind — the picture must reach all four edges.`;
