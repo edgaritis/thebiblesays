@@ -5,6 +5,24 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.20.0
+    - Channel direction change (this style only): switched from "faceless
+      figures allowed" to PURE LANDSCAPE — no people, no silhouettes, no
+      distant figures, no hands or body parts, and no tight object/prop
+      close-ups. Every line — human action, gesture, object, or quote — is
+      rendered as a wide landscape that carries its meaning through terrain,
+      weather, and light. The model is told there are almost no characters
+      and must not invent one to fill a shot. Jesus stays the sole exception,
+      only when a line names Him; any other divine presence is light.
+    - Added LANDSCAPE MOTION guidance to the gated block: since shots are
+      unpeopled, the video_prompt now animates the environment itself —
+      brisk but photoreal, continuous motion (drifting clouds, rolling mist,
+      wind, flowing water, shifting light, wheeling stars) on top of the
+      camera move, lively by design so it can be slowed in editing. Not
+      time-lapse / streaking.
+    - Style recipe updated to match (pure landscapes, no figures/props).
+    - All of the above remains gated to "Photorealistic Biblical Landscape";
+      every other style is untouched.
   v1.19.0
     - Diagnosed from a real run why faces kept appearing: the model wrote
       face/expression words ("both faces", "eyes raised", "lips moving", "in
@@ -835,7 +853,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.19.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.20.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -850,7 +868,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.19.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.20.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -907,7 +925,7 @@ $("stripOptional").addEventListener("change", updateStats);
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
   "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
-  "Photorealistic Biblical Landscape": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: vast natural landscapes and ancient biblical settings, no modern elements. People are rare and never the focus — when the line is about a person, show them small and far, from behind or in silhouette, face never visible; the only face ever shown is Jesus, and only when the line names Him. Avoid: a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars.",
+  "Photorealistic Biblical Landscape": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: vast natural landscapes and ancient biblical settings, no modern elements. Pure landscapes only — no people, no figures or silhouettes, no hands, no tight close-ups of objects or props; the only person ever shown is Jesus, and only when the line names Him. Avoid: any human figure or silhouette, tight object close-ups, a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -1238,15 +1256,18 @@ function buildSuperPrompt(script){
   const lang = $("targetLang").value.trim() || "English";
   const style = currentStyle();
   const isBiblical = $("style").value === "Photorealistic Biblical Landscape";
-  const faceBlock = isBiblical ? `
+  const bibBlock = isBiblical ? `
 
-HUMAN FIGURES — NO FACES (hard rule, overrides any storytelling instinct)
-- Every human figure in every image — lead or background, a named character, a prophet, a servant, a king, a soldier, or a crowd — MUST be shown with NO visible, readable face. Render people only from behind, in silhouette, or far enough that no face can be made out. There are no exceptions for important moments, conversations, or emotional beats.
-- Do NOT write any word that places a face or expression in frame: never "looking at the camera", "facing the viewer", "eyes", "gaze", "lips", "mouth", "smiling", "weeping face", "expression", "in shock", "fearful face", "both faces", "face lit by", or "close-up of his/her face". Describe posture, body angle, distance, gesture, hands, and silhouette instead. To show fear, show a braced body or a step backward — not a face; to show prayer, show a bowed distant figure from behind — not a face.
-- The ONLY face ever shown is the face of Jesus, and only when the line explicitly names Jesus, Christ, or the Son. Every other figure is faceless. Any other divine presence is light, never a face.
-- Listing a character in "characters" means they are PRESENT in the shot — it NEVER means their face is shown. A present, named character is still rendered faceless (from behind, silhouette, or distant).
-- Keep recurring figures consistent by wardrobe, build, hair, posture, and bearing — NEVER by facial features, since no face is ever shown. The consistency of a faceless figure is its silhouette and dress, not its face.` : "";
-  const depictionRules = DEPICTION_RULES + faceBlock;
+PURE LANDSCAPE — NO PEOPLE (hard rule for this style, overrides any storytelling instinct)
+- Every image is a wide landscape: vast natural scenery — sky, terrain, sea, desert, wilderness, valleys, rivers, the night heavens, ancient ruins or structures seen whole and from a distance. There are NO human beings of any kind: no figures, no small or distant figures, no silhouettes, no crowds, no hands or any body part. There are also NO tight close-ups of objects or props (no swords, sealed messages, doors, bread, cloth, keys, and so on). Compose wide, edge to edge.
+- When a line is about a person, a body, a gesture (kneeling, weeping, opening the hands, laying down a weapon) or an object, do NOT show the person, the body part, or the object. Translate its MEANING into the landscape, weather, light and terrain that carry it — the place, the sky, the path, the sea, the fire, the breaking dawn. The feeling lives in the land, never in a figure or a prop.
+- There are almost no characters in this video. For nearly every shot, "characters" is exactly "No character". Never invent or insert a person, a hand, or a crowd to fill a shot.
+- The ONLY exception is Jesus: when a line explicitly names Jesus, Christ, or the Son, His face may be shown, reverent and undistorted. Any other divine presence is shown as light, never as a figure.
+
+LANDSCAPE MOTION — keep every shot alive (video_prompt)
+- Because every shot is an unpeopled landscape, the motion that animates it is the environment itself. In each video_prompt, besides the camera move, describe brisk but natural, CONTINUOUS environmental motion that fits the scene: clouds drifting briskly across the sky, mist or fog rolling over the land, wind moving through grass, branches and dust, water flowing or waves rolling, warm light shifting across the terrain, smoke or embers rising from fire, stars wheeling slowly at night.
+- Keep it real continuous motion at a lively pace — NOT time-lapse, NOT frame-skipping, NOT streaking — so it stays photoreal. It is meant to be slowed down in editing, so generate it lively. Every shot should feel alive; never a frozen, static frame.` : "";
+  const depictionRules = DEPICTION_RULES + bibBlock;
   const tool = $("tool").value;
   const mode = $("mode").value;
   const clip = Math.max(1, parseFloat($("clipLen").value) || 5);
