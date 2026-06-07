@@ -5,6 +5,22 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.19.0
+    - Diagnosed from a real run why faces kept appearing: the model wrote
+      face/expression words ("both faces", "eyes raised", "lips moving", "in
+      shock") straight into per-shot image_prompts, contradicting its own
+      consistency bible. Root cause: the faceless rule lived only in the style
+      string and the bible, NOT in the depiction rulebook the model applies
+      while writing each prompt. (Veo obeyed "from behind" wherever the prompt
+      said it — the leak was prompt-authoring, not generation.)
+    - FIX: a hard "HUMAN FIGURES — NO FACES" block is now injected into the
+      depiction rules, but ONLY when the "Photorealistic Biblical Landscape"
+      style is selected (other styles are untouched). It makes facelessness
+      apply to EVERY figure (lead, servant, king, crowd), bans the exact face/
+      expression words the model slipped into, clarifies that listing a
+      character as present never means a visible face, and redefines
+      consistency as wardrobe/build/bearing rather than face. Jesus remains
+      the sole face exception, only when the line names Him.
   v1.18.0
     - Trimmed the "Photorealistic Biblical Landscape" recipe back to a LOOK
       description (color, light, mood, the avoid list) the length of the other
@@ -819,7 +835,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.18.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.19.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -834,7 +850,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.18.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.19.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1221,6 +1237,16 @@ function buildSuperPrompt(script){
   const summarize = $("summarize").checked;
   const lang = $("targetLang").value.trim() || "English";
   const style = currentStyle();
+  const isBiblical = $("style").value === "Photorealistic Biblical Landscape";
+  const faceBlock = isBiblical ? `
+
+HUMAN FIGURES — NO FACES (hard rule, overrides any storytelling instinct)
+- Every human figure in every image — lead or background, a named character, a prophet, a servant, a king, a soldier, or a crowd — MUST be shown with NO visible, readable face. Render people only from behind, in silhouette, or far enough that no face can be made out. There are no exceptions for important moments, conversations, or emotional beats.
+- Do NOT write any word that places a face or expression in frame: never "looking at the camera", "facing the viewer", "eyes", "gaze", "lips", "mouth", "smiling", "weeping face", "expression", "in shock", "fearful face", "both faces", "face lit by", or "close-up of his/her face". Describe posture, body angle, distance, gesture, hands, and silhouette instead. To show fear, show a braced body or a step backward — not a face; to show prayer, show a bowed distant figure from behind — not a face.
+- The ONLY face ever shown is the face of Jesus, and only when the line explicitly names Jesus, Christ, or the Son. Every other figure is faceless. Any other divine presence is light, never a face.
+- Listing a character in "characters" means they are PRESENT in the shot — it NEVER means their face is shown. A present, named character is still rendered faceless (from behind, silhouette, or distant).
+- Keep recurring figures consistent by wardrobe, build, hair, posture, and bearing — NEVER by facial features, since no face is ever shown. The consistency of a faceless figure is its silhouette and dress, not its face.` : "";
+  const depictionRules = DEPICTION_RULES + faceBlock;
   const tool = $("tool").value;
   const mode = $("mode").value;
   const clip = Math.max(1, parseFloat($("clipLen").value) || 5);
@@ -1251,7 +1277,7 @@ VISUAL SETTINGS
 - Prompt mode: ${mode === "i2v" ? "IMAGE-TO-VIDEO" : "TEXT-TO-VIDEO"}.
 - ${modeRules(mode, clip)}
 
-${DEPICTION_RULES}
+${depictionRules}
 
 SHOTS (the narration is given and fixed — write prompts for each):
 ${shotList}
@@ -1311,7 +1337,7 @@ SHOT RULES
 - ${modeRules(mode, clip)}
 - Keep the chosen visual style explicit in the image prompts.
 
-${DEPICTION_RULES}
+${depictionRules}
 
 PACKAGING (what wins the click and the first second)
 - "hooks": 3 curiosity-gap titles, strongest first — each promises an answer without giving it away (e.g. "the detail everyone misses in...", "what X actually says about Y"). Each works as a video title AND a thumbnail caption, roughly under 60 characters.
