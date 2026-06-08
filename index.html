@@ -5,6 +5,18 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.20.1
+    - PURE LANDSCAPE vocabulary fix: "wide landscape" → "OUTDOOR NATURAL
+      SCENERY — the camera is always outside, in nature." The word "outdoor"
+      is a hard binary the model cannot reinterpret as a wide interior shot.
+    - Added NO MODERN WORLD / NO INTERIOR WORLD override inside the PBL-gated
+      block: even when the narration is set in the present day, indoors, or
+      inside a building, the model must still render timeless outdoor landscape.
+      Three translation examples included (bedroom→wilderness, corridor→canyon,
+      door→mountain gap). This neutralises the global WORLD rule ("a modern
+      world includes them") that previously let the model build interior worlds.
+    - Global WORLD rule (line 1243) left untouched — non-biblical styles
+      keep their modern-world permission.
   v1.20.0
     - Channel direction change (this style only): switched from "faceless
       figures allowed" to PURE LANDSCAPE — no people, no silhouettes, no
@@ -853,7 +865,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.20.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.20.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -868,7 +880,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.20.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.20.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1259,7 +1271,7 @@ function buildSuperPrompt(script){
   const bibBlock = isBiblical ? `
 
 PURE LANDSCAPE — NO PEOPLE (hard rule for this style, overrides any storytelling instinct)
-- Every image is a wide landscape: vast natural scenery — sky, terrain, sea, desert, wilderness, valleys, rivers, the night heavens, ancient ruins or structures seen whole and from a distance. There are NO human beings of any kind: no figures, no small or distant figures, no silhouettes, no crowds, no hands or any body part. There are also NO tight close-ups of objects or props (no swords, sealed messages, doors, bread, cloth, keys, and so on). Compose wide, edge to edge.
+- Every image is OUTDOOR NATURAL SCENERY — the camera is always outside, in nature: sky, terrain, sea, desert, wilderness, valleys, rivers, the night heavens, ancient ruins seen whole and from a distance. NEVER indoors, NEVER inside any building, room, house, corridor, street, or vehicle. This style has NO modern world and NO interior world: even when the narration is set in the present day, indoors, or inside a building, that shot is still timeless outdoor landscape — translate the indoor or modern setting into terrain, sky, weather and light (a sleepless bedroom → a dark windswept wilderness at night; a corridor → a canyon passage; a door → a gap in a mountain wall). There are NO human beings of any kind (no figures, silhouettes, crowds, hands, or body parts) and NO tight close-ups of objects or props (no doors, keys, swords, envelopes, phones). Compose wide, edge to edge.
 - When a line is about a person, a body, a gesture (kneeling, weeping, opening the hands, laying down a weapon) or an object, do NOT show the person, the body part, or the object. Translate its MEANING into the landscape, weather, light and terrain that carry it — the place, the sky, the path, the sea, the fire, the breaking dawn. The feeling lives in the land, never in a figure or a prop.
 - There are almost no characters in this video. For nearly every shot, "characters" is exactly "No character". Never invent or insert a person, a hand, or a crowd to fill a shot.
 - The ONLY exception is Jesus: when a line explicitly names Jesus, Christ, or the Son, His face may be shown, reverent and undistorted. Any other divine presence is shown as light, never as a figure.
