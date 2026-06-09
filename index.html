@@ -5,6 +5,19 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.23.0
+    - TERRAIN: both biblical styles now specify ancient Middle Eastern and
+      Mediterranean landscapes (Judean hills, Galilee, olive groves, desert,
+      wheat fields, stone paths). No alpine, tropical, arctic, or fantasy.
+    - LIGHT: natural light only. Banned supernatural glow, self-illuminating
+      robes, sourceless divine light, radiance from footsteps. Divine presence
+      = golden hour, dawn, rim light, campfire warmth.
+    - PALETTE PROGRESSION: added to global WORLD rules — two night worlds
+      not permitted; emotional arc overrides literal time of day; avoid 30+
+      consecutive same-time shots.
+    - LINTER: new night-palette check flags when >70% of shots are nighttime.
+    - Jesus wardrobe examples updated: natural fabrics/colors only (removed
+      "luminous" references).
   v1.22.0
     - Renamed "Photorealistic Biblical Landscape" → "Photorealistic Landscape".
     - New style: "Photorealistic Biblical" — Jesus appears in ~half of shots,
@@ -885,7 +898,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.22.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.23.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -900,7 +913,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.22.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.23.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -957,8 +970,8 @@ $("stripOptional").addEventListener("change", updateStats);
 /* ---------- visual style recipes ---------- */
 const STYLE_RECIPES = {
   "Cinematic": "Anamorphic lens, shallow depth of field, naturalistically motivated lighting with strong key-to-fill contrast, naturalistic color grade with subtle teal-and-amber tones, fine film grain, widescreen composition that fills the frame edge to edge, atmospheric haze or lens bloom where appropriate, deliberate negative space. Avoid: letterbox or black bars, flat even lighting, oversaturated colors, plastic CGI skin, stock-photo look.",
-  "Photorealistic Landscape": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: vast natural landscapes and ancient biblical settings, no modern elements. Pure landscapes only — no people, no figures or silhouettes, no hands, no tight close-ups of objects or props; the only person ever shown is Jesus, and only when the line names Him. Avoid: any human figure or silhouette, tight object close-ups, a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars.",
-  "Photorealistic Biblical": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: stunning natural landscapes and ancient biblical settings, no modern elements. Jesus appears in approximately half of all shots, depicted reverently within outdoor landscapes. No other human figures with visible faces. Avoid: tight object close-ups, a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars.",
+  "Photorealistic Landscape": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: ancient Middle Eastern and Mediterranean landscapes — Judean hills, Galilee shoreline, olive groves, desert wilderness, wheat fields, stone paths. No modern elements. Pure landscapes only — no people, no figures or silhouettes, no hands, no tight close-ups of objects or props; the only person ever shown is Jesus, and only when the line names Him. Avoid: any human figure or silhouette, tight object close-ups, a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars, supernatural glow or self-illuminating effects.",
+  "Photorealistic Biblical": "Photorealistic — a real photograph, not a movie still or a render. True-to-life color and exposure, natural white balance and contrast, natural light only (sun, moon, stars, fire). Reverent, timeless mood: ancient Middle Eastern and Mediterranean landscapes — Judean hills, Galilee shoreline, olive groves, desert wilderness, wheat fields, stone paths. No modern elements. Jesus appears in approximately half of all shots, depicted reverently within outdoor landscapes, lit by natural light only. No other human figures with visible faces. Avoid: tight object close-ups, a cinematic or movie-still look, teal-and-orange or heavy grading, dark or muddy shadows, oversaturation, plastic CGI skin, flat lighting, on-screen text, letterbox or black bars, supernatural glow or self-illuminating effects.",
   "Photorealistic": "True-to-life detail, natural skin texture with pores and imperfections, physically accurate lighting and shadows, realistic depth of field on a 35mm or 50mm prime lens, neutral color balance with natural white point, no post-processing stylization. Avoid: painterly effects, cartoon features, overly smooth skin, HDR tonemapping, illustrative look.",
   "Anime": "2D cel-shaded illustration, clean bold line art, flat color fills with hard cel shadows, vibrant saturated palette, large expressive eyes, dynamic composition with dramatic angles, speed lines or impact frames for action, detailed painted backgrounds in contrast to flat characters. Avoid: 3D render, photorealism, realistic proportions, film grain, depth of field blur.",
   "3D animated (Pixar-like)": "High-quality 3D render, soft global illumination, subsurface scattering on skin, slightly exaggerated proportions (large heads, expressive features), rich saturated color palette, smooth clean surfaces, warm rim lighting, detailed environment with stylized realism. Avoid: photorealism, uncanny valley, flat shading, 2D illustration, harsh shadows.",
@@ -1274,6 +1287,8 @@ const DEPICTION_RULES =
 - For EACH world, DERIVE from the narration (do not assume): its setting and era, the light sources that genuinely fit it (e.g. sun / fire vs lamps / neon / screens), who is present, and what would be OUT OF PLACE there (anachronisms, structures, crowds, objects that don't belong). Put these in "worlds" with a short name + description.
 - Assign EVERY shot to the world it belongs to (its "world").
 - GROUND every image_prompt in ITS world — the world's setting and its fitting light, even for close-ups (a close-up still shows where it is) — and exclude whatever is out-of-place for that world. The exclusions are derived per world: a primeval-garden world excludes buildings and artificial light; a modern world includes them. Never impose one fixed world on all shots.
+- When creating multiple worlds, each must have a DISTINCT lighting condition and time of day. Two night worlds is not permitted — if one world is dark or night, the other must be visibly different, progressing from dawn to daylight.
+- PALETTE PROGRESSION: vary the visual palette across the video. Avoid 30+ consecutive shots at the same time of day. When the emotional arc moves from distress to peace, progress from dark to light — the emotional meaning overrides the literal time of day in the narration.
 
 DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
@@ -1294,6 +1309,8 @@ function buildSuperPrompt(script){
 
 PURE LANDSCAPE — NO PEOPLE (hard rule for this style, overrides any storytelling instinct)
 - Every image is OUTDOOR NATURAL SCENERY — the camera is always outside, in nature: sky, terrain, sea, desert, wilderness, valleys, rivers, the night heavens, ancient ruins seen whole and from a distance. NEVER indoors, NEVER inside any building, room, house, corridor, street, or vehicle. This style has NO modern world and NO interior world: even when the narration is set in the present day, indoors, or inside a building, that shot is still timeless outdoor landscape — translate the indoor or modern setting into terrain, sky, weather and light (a sleepless bedroom → a dark windswept wilderness at night; a corridor → a canyon passage; a door → a gap in a mountain wall). There are NO human beings of any kind (no figures, silhouettes, crowds, hands, or body parts) and NO tight close-ups of objects or props (no doors, keys, swords, envelopes, phones). Compose wide, edge to edge.
+- TERRAIN: ancient Middle Eastern and Mediterranean landscapes — Judean hills, Galilee shoreline, Sea of Galilee, olive groves, desert wilderness, wheat fields, stone paths, dry riverbeds, ancient ruins. Not alpine, not tropical, not arctic, not fantasy.
+- LIGHT: natural light ONLY — sun, moon, stars, fire, dawn, golden hour. No supernatural glow, no self-illuminating effects, no radiance from figures or clothing, no sourceless divine light. When the scene needs to feel divine, use beautiful natural light (golden hour, dawn breaking through clouds, warm rim light, campfire warmth) — not fantasy effects.
 - When a line is about a person, a body, a gesture (kneeling, weeping, opening the hands, laying down a weapon) or an object, do NOT show the person, the body part, or the object. Translate its MEANING into the landscape, weather, light and terrain that carry it — the place, the sky, the path, the sea, the fire, the breaking dawn. The feeling lives in the land, never in a figure or a prop.
 - There are almost no characters in this video. For nearly every shot, "characters" is exactly "No character". Never invent or insert a person, a hand, or a crowd to fill a shot.
 - The ONLY exception is Jesus: when a line explicitly names Jesus, Christ, or the Son, His face may be shown, reverent and undistorted. When Jesus appears, describe his wardrobe, action, pose, and placement — but do NOT describe his physical face or body, because the user's saved Character handles identity consistency. Any other divine presence is shown as light, never as a figure.
@@ -1307,8 +1324,10 @@ LANDSCAPE MOTION — keep every shot alive (video_prompt)
 
 JESUS IN LANDSCAPE (hard rules for this style, overrides any storytelling instinct)
 - Every image is OUTDOOR NATURAL SCENERY — the camera is always outside, in nature: sky, terrain, sea, desert, wilderness, valleys, rivers, the night heavens, ancient ruins seen whole and from a distance. NEVER indoors, NEVER inside any building, room, house, corridor, street, or vehicle. This style has NO modern world and NO interior world: even when the narration is set in the present day, indoors, or inside a building, that shot is still timeless outdoor landscape — translate the indoor or modern setting into terrain, sky, weather and light.
+- TERRAIN: ancient Middle Eastern and Mediterranean landscapes — Judean hills, Galilee shoreline, Sea of Galilee, olive groves, desert wilderness, wheat fields, stone paths, dry riverbeds, ancient ruins. Not alpine, not tropical, not arctic, not fantasy.
+- LIGHT: natural light ONLY — sun, moon, stars, fire, dawn, golden hour. No supernatural glow, no self-illuminating effects, no radiance from figures or clothing, no sourceless divine light, no luminous robes. When the scene needs to feel divine, use beautiful natural light (golden hour, dawn breaking through clouds, warm rim light, campfire warmth) — not fantasy effects. Jesus is lit by the same natural light as the landscape.
 - Jesus appears in approximately HALF of all shots — whenever God's presence, action, compassion, love, guidance, protection, or spiritual truth is being expressed. Jesus does NOT need to be explicitly named in the narration to appear — the model decides based on spiritual and emotional meaning. Reserve pure landscape for: establishing shots, abstract concepts (distance, scale, time), and emotional transitions without direct divine reference.
-- When Jesus appears: describe his WARDROBE, ACTION, POSE, EXPRESSION, and PLACEMENT in the landscape — but do NOT describe his physical face or body appearance. The user's saved Character handles identity consistency. Wardrobe VARIES per shot to serve the scene's mood (simple white linen for tenderness, deep blue mantle for teaching, weathered traveling cloak for solitude, etc.).
+- When Jesus appears: describe his WARDROBE, ACTION, POSE, EXPRESSION, and PLACEMENT in the landscape — but do NOT describe his physical face or body appearance. The user's saved Character handles identity consistency. Wardrobe VARIES per shot to serve the scene's mood — natural fabrics and colors only (white linen for tenderness, deep blue mantle for teaching, brown traveling cloak for solitude, cream robe for comfort, gray-blue wool for watchfulness).
 - Jesus is always depicted reverently, face undistorted when shown, fitting naturally within the landscape — part of it, not dominating it.
 - NO other human figures with visible faces. Distant faceless silhouettes OK when the scene warrants (e.g. a crowd listening), but keep focus on Jesus and landscape.
 - No tight close-ups of objects or props. Compose wide, edge to edge.
@@ -1705,10 +1724,18 @@ function renderShots(d){
   // linter summary (advisory, non-blocking)
   let lShots = 0, lIssues = 0;
   lint.forEach(arr => { if (arr.length){ lShots++; lIssues += arr.length; } });
+  // night-palette check: flag when >70% shots are nighttime
+  const NIGHT_RE = /\b(at night|nighttime|moonlight|moonlit|starlight|starlit|starless|under stars|night sky|Milky Way|midnight|dark.*sky|heavy overcast.*night|pre-dawn|dark.*terrain at|dark.*landscape)\b/i;
+  const nightCount = d.shots.filter(s => NIGHT_RE.test(s.image_prompt || "")).length;
+  const nightPct = d.shots.length ? Math.round(100 * nightCount / d.shots.length) : 0;
+  const nightWarn = nightPct > 70;
   const ln = $("lintNote");
-  if (lIssues){
+  if (lIssues || nightWarn){
     ln.className = "lint-note warn";
-    ln.textContent = "⚠ Linter: " + lIssues + " issue" + (lIssues>1?"s":"") + " across " + lShots + " shot" + (lShots>1?"s":"") + " — advisory only. Hover a ⚠ tag to see why; fix or ignore before generating.";
+    let msg = "";
+    if (lIssues) msg += "⚠ Linter: " + lIssues + " issue" + (lIssues>1?"s":"") + " across " + lShots + " shot" + (lShots>1?"s":"") + " — advisory only. Hover a ⚠ tag to see why; fix or ignore before generating.";
+    if (nightWarn) msg += (msg ? " " : "") + "⚠ Palette: " + nightPct + "% of shots are nighttime (" + nightCount + "/" + d.shots.length + ") — consider adding daylight progression for visual variety.";
+    ln.textContent = msg;
   } else {
     ln.className = "lint-note ok";
     ln.textContent = "✓ Linter: no prompt issues flagged.";
