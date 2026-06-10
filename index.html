@@ -5,6 +5,19 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.24.0
+    - New style family: Whiteboard Animation (5 entries — Black & White,
+      Blue Accent, Red Accent, Multicolor Accent, Full Color). Continuous
+      hand-drawing on a white board, blank → finished image.
+    - Gated WHITEBOARD block: each shot = ONE concrete drawable subject
+      representing that line within the whole story's arc (abstractions
+      converted to a single drawable symbol). No location/world/time-of-day.
+      Complexity scales with shot duration. One subject, centered. No text.
+    - Whiteboard styles auto-force text-to-video (mode locked + disabled) and
+      auto-set speaking rate to 150 wpm; both restore when switching away or
+      on new project. Saved whiteboard projects re-lock on load.
+    - LINTER: new "abstract" check (whiteboard only) flags shots whose subject
+      reads as a concept rather than a concrete drawable object.
   v1.23.0
     - TERRAIN: both biblical styles now specify ancient Middle Eastern and
       Mediterranean landscapes (Judean hills, Galilee, olive groves, desert,
@@ -661,6 +674,11 @@
           <option>Cyberpunk</option>
           <option>Vintage film</option>
           <option>Minimalist / clean</option>
+          <option>Whiteboard Animation - Black &amp; White</option>
+          <option>Whiteboard Animation - Blue Accent</option>
+          <option>Whiteboard Animation - Red Accent</option>
+          <option>Whiteboard Animation - Multicolor Accent</option>
+          <option>Whiteboard Animation - Full Color</option>
           <option value="__custom">Custom…</option>
         </select>
         <div id="styleHint" style="margin-top:8px;font-size:12px;color:var(--ink-soft)">This is the exact style sent to the model (read-only). Pick Custom… to write your own.</div>
@@ -898,7 +916,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.23.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.24.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -913,7 +931,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.23.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.24.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -980,8 +998,14 @@ const STYLE_RECIPES = {
   "Film noir": "High contrast black-and-white or near-monochrome with deep shadows, hard directional lighting from a single source, strong cast shadows and venetian-blind patterns, low-key lighting (predominantly dark frame), Dutch angles and canted framing, fog or smoke atmosphere, 1940s visual language. Avoid: bright even lighting, saturated color, soft flat shadows, modern clean aesthetic.",
   "Cyberpunk": "Neon-drenched nighttime urban environment, electric blue and magenta palette with hot pink and toxic green accents, volumetric fog catching neon light, reflective wet streets, holographic UI elements and signage, high-tech low-life contrast, shallow depth of field with anamorphic lens flares, dense layered visual information. Avoid: natural daylight, pastoral settings, muted colors, clean minimalist spaces.",
   "Vintage film": "Kodachrome or Ektachrome color rendition with warm amber highlights and faded cool shadows, visible film grain (medium to heavy), slightly desaturated midtones, soft halation around highlights, vignetting at frame edges, rounded color rolloff, period-appropriate framing. Avoid: digital sharpness, clean modern color science, HDR dynamic range, contemporary styling.",
-  "Minimalist / clean": "Generous white space, flat or near-flat design, limited restrained palette (2-3 colors maximum), clean geometric composition, soft diffused even lighting, no texture or grain, sharp precise edges, calm uncluttered frame. Avoid: busy backgrounds, heavy texture, dramatic lighting, saturated or noisy color, ornate detail."
+  "Minimalist / clean": "Generous white space, flat or near-flat design, limited restrained palette (2-3 colors maximum), clean geometric composition, soft diffused even lighting, no texture or grain, sharp precise edges, calm uncluttered frame. Avoid: busy backgrounds, heavy texture, dramatic lighting, saturated or noisy color, ornate detail.",
+  "Whiteboard Animation - Black & White": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a black marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Pure black-and-white line-art — no color, clean confident marker lines, simple shading with hatching only. One subject, centered, plenty of white space. Avoid: color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Blue Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with a single blue accent color used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Red Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with a single red accent color used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Multicolor Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with two or three accent colors used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: fully saturated color fills, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Full Color": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion, then filling it with full marker color by the end. Black outlines with complete color fill, clean confident lines, one subject, centered, plenty of white space. Avoid: photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking."
 };
+let _preWhiteboard = null;   // remembers mode+wpm before a whiteboard style forced them
 function loadStyleRecipe(){
   const v = $("style").value;
   const ta = $("styleRecipe");
@@ -995,6 +1019,19 @@ function loadStyleRecipe(){
   $("styleHint").textContent = (v === "__custom")
     ? "Custom style — write your own; this exact text is sent to the model."
     : "This is the exact style sent to the model (read-only). Pick Custom… to write your own.";
+  // Whiteboard styles auto-force text-to-video and a faster speaking rate.
+  const wb = /^Whiteboard Animation/.test(v);
+  if (wb){
+    if (!_preWhiteboard) _preWhiteboard = { mode: $("mode").value, wpm: $("wpm").value };
+    $("mode").value = "t2v"; $("mode").disabled = true;
+    $("wpm").value = 150;
+    $("styleHint").textContent = "Whiteboard styles draw blank → finished, so prompt mode is locked to text-to-video and the speaking rate is set to 150 wpm.";
+  } else if (_preWhiteboard){
+    $("mode").value = _preWhiteboard.mode; $("mode").disabled = false;
+    $("wpm").value = _preWhiteboard.wpm;
+    _preWhiteboard = null;
+  }
+  if (typeof updateStats === "function") updateStats();
   if (typeof autoGrow === "function") autoGrow(ta);
 }
 $("style").addEventListener("change", loadStyleRecipe);
@@ -1305,6 +1342,7 @@ function buildSuperPrompt(script){
   const style = currentStyle();
   const isLandscape = $("style").value === "Photorealistic Landscape";
   const isBiblicalJesus = $("style").value === "Photorealistic Biblical";
+  const isWhiteboard = /^Whiteboard Animation/.test($("style").value);
   const landscapeBlock = isLandscape ? `
 
 PURE LANDSCAPE — NO PEOPLE (hard rule for this style, overrides any storytelling instinct)
@@ -1338,7 +1376,23 @@ LANDSCAPE MOTION — keep every shot alive (video_prompt)
 - Keep it real continuous motion at a lively pace — NOT time-lapse, NOT frame-skipping, NOT streaking — so it stays photoreal. Meant to be slowed in editing, so generate it lively.
 - For every shot where Jesus appears: start the video_prompt with "Start exactly on the source image as the first frame" and end with "the man stays identical to the source frame — face unchanged, no morphing, no feature shift."` : "";
 
-  const bibBlock = landscapeBlock || jesusBlock;
+  const whiteboardBlock = isWhiteboard ? `
+
+WHITEBOARD ANIMATION (hard rules for this style, overrides any storytelling instinct)
+- You have the ENTIRE script. Before writing any prompt, understand the overall story and emotional arc. Then for EACH shot, convert its line into ONE clear, instantly-readable drawable subject — a single concrete object, figure, or simple scene that represents that line's meaning WITHIN the whole story's arc. Never describe an abstract concept (faith, time, doubt, mercy) directly — convert it into one concrete drawable symbol (faith → a small seedling pushing through cracked ground; doubt → a fork in a path; mercy → an open hand). The subject must be catchy and immediately legible the moment the hand finishes drawing it.
+- EVERY shot is the same medium: a hand drawing on a white background. There is NO location, NO landscape, NO time of day, NO lighting world — just the white board and the drawing. Ignore any setting/world/time-of-day reasoning for this style; it does not apply.
+- image_prompt describes the FINISHED drawing (the completed image the hand has drawn) — the subject, its composition, and the line/color treatment. video_prompt describes the hand drawing it from blank to complete.
+- COMPLEXITY SCALES WITH SHOT DURATION: a short shot gets a SIMPLE subject (one object, few strokes) so the hand finishes in time; a longer shot gets a RICHER subject (a small scene, more detail) so the hand is not idle. Match drawing complexity to the words-per-shot.
+- ONE subject per shot, centered, with plenty of empty white space around it. No busy backgrounds, no multiple competing elements, no scenery filling the frame.
+- NO on-screen text, words, letters, numbers, captions, or labels anywhere in the drawing — none, ever, even though real whiteboard videos often have them (generators garble text). Draw the meaning as an image only.
+- "characters" should name a figure only if the drawn subject is a person/character; otherwise "No character".
+
+WHITEBOARD MOTION (video_prompt — same structure every shot)
+- Every video_prompt follows this shape: "Continuous real-time hand-drawing on a clean white background. A hand holding a marker starts on a completely blank board and draws [the subject] at a steady, consistent speed from the first stroke, building the image progressively with no skipped frames, no sudden changes, and no visual drift. By the end, the drawing is complete[ and fully colored — for Full Color/accent styles]. Smooth continuous motion, absolute visual continuity throughout."
+- The board STARTS blank and the finished drawing is the END state — do NOT describe a pre-existing image as the first frame.
+- "Continuous real-time hand-drawing," NEVER "timelapse" (timelapse reads as choppy/streaking).` : "";
+
+  const bibBlock = landscapeBlock || jesusBlock || whiteboardBlock;
   const depictionRules = DEPICTION_RULES + bibBlock;
   const tool = $("tool").value;
   const mode = $("mode").value;
@@ -1648,12 +1702,14 @@ const LINT = {
   MAX_WORDS: 75,   // over this: dilution risk
   MIN_WORDS: 6,    // image prompt this short likely lacks setting/grounding
   TEXT: /\b(text|texts|caption|captions|subtitle|subtitles|words|writing|written|lettering|letters|typography|fonts?|scrolls?|signage|banners?|headlines?|inscriptions?|paragraphs?|sentences?|title card|watermark|book page|page of)\b/i,
-  PLACEHOLDER: /\b(see above|same as (?:above|before|shot)|as (?:above|before)|n\/a|tbd|todo|placeholder|insert |lorem ipsum)\b|\[[^\]]*\]/i
+  PLACEHOLDER: /\b(see above|same as (?:above|before|shot)|as (?:above|before)|n\/a|tbd|todo|placeholder|insert |lorem ipsum)\b|\[[^\]]*\]/i,
+  // whiteboard: subject reads abstract (a concept) rather than a concrete drawable thing
+  ABSTRACT: /\b(concept of|the idea of|representing (?:faith|hope|love|doubt|mercy|grace|time|fear|peace|trust|anxiety|control|silence|sin|forgiveness)|abstract|metaphor for|symboliz\w*\b(?!.*\b(?:as|by)\b))\b/i
 };
 function cleanImg(s){ return String(s||"").replace(/make the file name[^.]*\.?/i, "").trim(); }
 function wordCount(s){ return (String(s||"").trim().match(/\S+/g) || []).length; }
 // Returns an array of {lab, t} issues for one shot. Empty array = clean.
-function lintShot(sh){
+function lintShot(sh, isWB){
   const issues = [];
   const img = cleanImg(sh.image_prompt);
   const vid = String(sh.video_prompt || "").trim();
@@ -1662,13 +1718,17 @@ function lintShot(sh){
   if (img){
     if (LINT.PLACEHOLDER.test(img)) issues.push({ lab:"placeholder", t:"looks like a placeholder, not a finished prompt" });
     if (LINT.TEXT.test(img)) issues.push({ lab:"text", t:"may render on-screen text (generators garble text)" });
+    if (isWB && LINT.ABSTRACT.test(img)) issues.push({ lab:"abstract", t:"subject reads abstract — whiteboard needs one concrete drawable object/figure" });
     const iw = wordCount(img);
     if (iw > LINT.MAX_WORDS) issues.push({ lab:"long", t:"very long (" + iw + " words) — detail may dilute" });
     else if (iw < LINT.MIN_WORDS) issues.push({ lab:"short", t:"very short (" + iw + " words) — may lack setting" });
   }
   return issues;
 }
-function lintShots(shots){ return shots.map(lintShot); }
+function lintShots(shots){
+  const isWB = /^Whiteboard Animation/.test($("style").value);
+  return shots.map(s => lintShot(s, isWB));
+}
 function lintChips(issues){
   if (!issues || !issues.length) return "";
   return issues.map(x =>
@@ -1886,6 +1946,11 @@ function applyState(p, projName){
   loadStyleRecipe();
   $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
   $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 5;
+  // whiteboard styles re-lock mode to t2v after restoring saved settings
+  if (/^Whiteboard Animation/.test($("style").value)){
+    _preWhiteboard = { mode: (s.mode === "t2v" ? "i2v" : (s.mode || "i2v")), wpm: s.wpm || 140 };
+    $("mode").value = "t2v"; $("mode").disabled = true;
+  }
   $("stripOptional").checked = !!s.stripOptional;
   $("aspect").value = s.aspect || "16:9";
   VIEW_MODE = (s.viewMode === "table") ? "table" : "cards";
@@ -1977,7 +2042,7 @@ $("newProjBtn").addEventListener("click", () => {
   $("script").value = "";
   $("translate").checked = false; $("summarize").checked = false; reflectSummarize(); $("targetLang").value = "English";
   loadStyleRecipe();
-  $("tool").value = "Veo"; $("mode").value = "i2v"; $("wpm").value = 140; $("clipLen").value = 5;
+  $("tool").value = "Veo"; $("mode").value = "i2v"; $("mode").disabled = false; _preWhiteboard = null; $("wpm").value = 140; $("clipLen").value = 5;
   $("stripOptional").checked = false; $("aspect").value = "16:9"; VIEW_MODE = "cards";
   { const sx0 = getSeries(); if (sx0.styleRecipe){ $("style").value = "__custom"; $("styleRecipe").value = sx0.styleRecipe; loadStyleRecipe(); } if (sx0.aspect) $("aspect").value = sx0.aspect; }
   renderCastSelector({ chars: [], worlds: [] });
