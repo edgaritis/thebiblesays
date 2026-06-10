@@ -5,6 +5,15 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.26.1
+    - Whiteboard motion template: removed the leftover "[ and fully colored —
+      for Full Color/accent styles]" bracket that could leak literal bracket
+      text or wrong color into video prompts. Now "complete in the style's
+      line and color treatment" + an explicit do-not-invent-color note, which
+      works for all five whiteboard variants (B&W through Full Color).
+    - DEPICTION_CORE variety rule: "setting" → "depicted scene" so the
+      no-repeat rule is unambiguous for whiteboard (where the literal setting
+      is always white) without changing meaning for cinematic styles.
   v1.26.0
     - Fixed whiteboard prompt contradictions (the cinematic scaffolding fought
       the whiteboard rules). DEPICTION_RULES split into WORLD_RULES,
@@ -940,7 +949,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.26.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.26.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -955,7 +964,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.26.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.26.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1381,7 +1390,7 @@ const DEPICTION_CORE =
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
 - Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography. NEVER place readable words, letters, captions, numbers, or watermarks anywhere in any image — visualise the meaning instead. (Generators render text as garbled nonsense, and text is not wanted.)
 - When a person is warranted, do NOT default to kneeling, lying down, or praying — choose the action the specific line implies, and vary the human depiction from shot to shot so figures are not all in the same pose.
-- VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
+- VARIETY IS REQUIRED: no two consecutive shots may share the same subject, depicted scene, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
 - Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.`;
 
 const FULL_FRAME_RULE =
@@ -1449,7 +1458,7 @@ WHITEBOARD ANIMATION (hard rules for this style, overrides any storytelling inst
 - "characters" should name a figure only if the drawn subject is a person/character; otherwise "No character".
 
 WHITEBOARD MOTION (video_prompt — same structure every shot)
-- Every video_prompt follows this shape: "Continuous real-time hand-drawing on a clean white background. A hand holding a marker starts on a completely blank board and draws [the subject] at a steady, consistent speed from the first stroke, building the image progressively with no skipped frames, no sudden changes, and no visual drift. By the end, the drawing is complete[ and fully colored — for Full Color/accent styles]. Smooth continuous motion, absolute visual continuity throughout."
+- Every video_prompt follows this shape: "Continuous real-time hand-drawing on a clean white background. A hand holding a marker starts on a completely blank board and draws [the subject] at a steady, consistent speed from the first stroke, building the image progressively with no skipped frames, no sudden changes, and no visual drift. By the end, the drawing is complete in the style's line and color treatment. Smooth continuous motion, absolute visual continuity throughout." (Do not invent a color treatment here — it comes from the style recipe. Do not output literal brackets.)
 - The board STARTS blank and the finished drawing is the END state — do NOT describe a pre-existing image as the first frame.
 - "Continuous real-time hand-drawing," NEVER "timelapse" (timelapse reads as choppy/streaking).` : "";
 
