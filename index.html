@@ -5,6 +5,13 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.27.1
+    - Fixed a miss from v1.27.0: the five whiteboard STYLE RECIPES (the look
+      strings shown in the dropdown and injected as the STYLE line) still said
+      "a hand holding a marker draws" — contradicting the no-hand block. All
+      five rewritten to self-drawing ("black lines draw themselves, no hand
+      visible") with "any visible hand or marker" added to each Avoid list.
+      Also updated the style-hint text under the dropdown.
   v1.27.0
     - Whiteboard reworked to pure text-to-video, self-drawing (no visible hand).
       Testing showed the hand-drawing-from-blank effect drifts/regenerates on
@@ -967,7 +974,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.27.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.27.1</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -982,7 +989,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.27.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.27.1";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1056,11 +1063,11 @@ const STYLE_RECIPES = {
   "Cyberpunk": "Neon-drenched nighttime urban environment, electric blue and magenta palette with hot pink and toxic green accents, volumetric fog catching neon light, reflective wet streets, holographic UI elements and signage, high-tech low-life contrast, shallow depth of field with anamorphic lens flares, dense layered visual information. Avoid: natural daylight, pastoral settings, muted colors, clean minimalist spaces.",
   "Vintage film": "Kodachrome or Ektachrome color rendition with warm amber highlights and faded cool shadows, visible film grain (medium to heavy), slightly desaturated midtones, soft halation around highlights, vignetting at frame edges, rounded color rolloff, period-appropriate framing. Avoid: digital sharpness, clean modern color science, HDR dynamic range, contemporary styling.",
   "Minimalist / clean": "Generous white space, flat or near-flat design, limited restrained palette (2-3 colors maximum), clean geometric composition, soft diffused even lighting, no texture or grain, sharp precise edges, calm uncluttered frame. Avoid: busy backgrounds, heavy texture, dramatic lighting, saturated or noisy color, ornate detail.",
-  "Whiteboard Animation - Black & White": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a black marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Pure black-and-white line-art — no color, clean confident marker lines, simple shading with hatching only. One subject, centered, plenty of white space. Avoid: color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
-  "Whiteboard Animation - Blue Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with a single blue accent color used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
-  "Whiteboard Animation - Red Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with a single red accent color used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
-  "Whiteboard Animation - Multicolor Accent": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion. Black line-art with two or three accent colors used selectively for emphasis. Clean confident marker lines, one subject, centered, plenty of white space. Avoid: fully saturated color fills, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
-  "Whiteboard Animation - Full Color": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion, then filling it with full marker color by the end. Black outlines with complete color fill, clean confident lines, one subject, centered, plenty of white space. Avoid: photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking."
+  "Whiteboard Animation - Black & White": "2D black-and-white line-art whiteboard animation on a clean white background. Black lines smoothly and progressively draw themselves with no hand visible, continuously tracing until the image is complete. Pure black-and-white line-art — no color, clean confident lines, simple shading with hatching only. One subject, centered, plenty of white space. Avoid: any visible hand or marker, color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Blue Accent": "2D black-and-white line-art whiteboard animation on a clean white background. Black lines smoothly and progressively draw themselves with no hand visible, continuously tracing until the image is complete. Black line-art with a single blue accent color used selectively for emphasis. Clean confident lines, one subject, centered, plenty of white space. Avoid: any visible hand or marker, full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Red Accent": "2D black-and-white line-art whiteboard animation on a clean white background. Black lines smoothly and progressively draw themselves with no hand visible, continuously tracing until the image is complete. Black line-art with a single red accent color used selectively for emphasis. Clean confident lines, one subject, centered, plenty of white space. Avoid: any visible hand or marker, full color, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Multicolor Accent": "2D black-and-white line-art whiteboard animation on a clean white background. Black lines smoothly and progressively draw themselves with no hand visible, continuously tracing until the image is complete. Black line-art with two or three accent colors used selectively for emphasis. Clean confident lines, one subject, centered, plenty of white space. Avoid: any visible hand or marker, fully saturated color fills, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking.",
+  "Whiteboard Animation - Full Color": "2D line-art whiteboard animation on a clean white background. Black-outlined lines smoothly and progressively draw themselves with no hand visible, continuously tracing until the image is complete and filled with full color by the end. Black outlines with complete color fill, clean confident lines, one subject, centered, plenty of white space. Avoid: any visible hand or marker, photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking."
 };
 let _preWhiteboard = null;   // remembers mode+wpm before a whiteboard style forced them
 // Per-style recommended reading-time / shot (seconds). Styles not listed are left alone.
@@ -1094,7 +1101,7 @@ function loadStyleRecipe(fromUser){
     if (!_preWhiteboard) _preWhiteboard = { mode: $("mode").value, wpm: $("wpm").value };
     $("mode").value = "t2v"; $("mode").disabled = true;
     $("wpm").value = 150;
-    $("styleHint").textContent = "Whiteboard styles draw blank → finished, so prompt mode is locked to text-to-video, speaking rate 150 wpm, and reading time 8s/shot.";
+    $("styleHint").textContent = "Whiteboard styles are self-drawing line-art (lines draw themselves, no visible hand), so prompt mode is locked to text-to-video, speaking rate 150 wpm, and reading time 8s/shot.";
   } else if (_preWhiteboard){
     $("mode").value = _preWhiteboard.mode; $("mode").disabled = false;
     $("wpm").value = _preWhiteboard.wpm;
