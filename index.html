@@ -5,6 +5,26 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.28.0
+    - Whiteboard reversed from pure t2v back to END-FRAME i2v. Testing showed
+      pure t2v draws plain/loose and can't reach the detail the still-image
+      generator produces; anchoring to a rich reference still gives a far
+      better-looking clip (the still carries the detail, the video resolves
+      into it).
+    - image_prompt RETURNS for whiteboard — describes the full finished drawing.
+      video_prompt is now a single FIXED, content-free wrapper (identical every
+      shot): "…lines draw themselves… until the final frame perfectly matches
+      and resolves into the provided reference image." The subject lives only in
+      the image_prompt; the video never re-describes the scene.
+    - Mode locked to i2v (was t2v). The generated image is fed as the END / LAST
+      frame; the Agent Brief video line is prefixed "Use the attached image as
+      the END / last frame." (NOT the normal first-frame anchor).
+    - File-naming on BOTH image and video again. Linter, empty-counter, and
+      brief reverted to expect an image; abstract check back on the image_prompt.
+    - Added rule: ONE moment per whiteboard shot — a single drawable instant,
+      never a sequence (fixes "stands, then falls" two-action prompts).
+    - Jesus-Character gating (Biblical + Landscape only) and no-hand recipes from
+      v1.27.x are unchanged.
   v1.27.1
     - Fixed a miss from v1.27.0: the five whiteboard STYLE RECIPES (the look
       strings shown in the dropdown and injected as the STYLE line) still said
@@ -974,7 +994,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.27.1</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.28.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -989,7 +1009,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.27.1";   // built-with version, stamped into exports
+const APP_VERSION = "1.28.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1095,13 +1115,13 @@ function loadStyleRecipe(fromUser){
   $("styleHint").textContent = (v === "__custom")
     ? "Custom style — write your own; this exact text is sent to the model."
     : "This is the exact style sent to the model (read-only). Pick Custom… to write your own.";
-  // Whiteboard styles auto-force text-to-video and a faster speaking rate.
+  // Whiteboard styles auto-force image-to-video (end-frame) and a faster speaking rate.
   const wb = /^Whiteboard Animation/.test(v);
   if (wb){
     if (!_preWhiteboard) _preWhiteboard = { mode: $("mode").value, wpm: $("wpm").value };
-    $("mode").value = "t2v"; $("mode").disabled = true;
+    $("mode").value = "i2v"; $("mode").disabled = true;
     $("wpm").value = 150;
-    $("styleHint").textContent = "Whiteboard styles are self-drawing line-art (lines draw themselves, no visible hand), so prompt mode is locked to text-to-video, speaking rate 150 wpm, and reading time 8s/shot.";
+    $("styleHint").textContent = "Whiteboard styles are self-drawing line-art (lines draw themselves into the reference image, no visible hand). Generate the still, then feed it as the END / last frame in your generator. Mode is locked to image-to-video, speaking rate 150 wpm, reading time 8s/shot.";
   } else if (_preWhiteboard){
     $("mode").value = _preWhiteboard.mode; $("mode").disabled = false;
     $("wpm").value = _preWhiteboard.wpm;
@@ -1474,20 +1494,19 @@ LANDSCAPE MOTION — keep every shot alive (video_prompt)
   const whiteboardBlock = isWhiteboard ? `
 
 WHITEBOARD ANIMATION (hard rules for this style, overrides any storytelling instinct)
-- You have the ENTIRE script. Before writing any prompt, understand the overall story and emotional arc. Then for EACH shot, convert its line into ONE clear, instantly-readable drawable subject — a single concrete object, figure, or simple scene that represents that line's meaning WITHIN the whole story's arc. Never describe an abstract concept (faith, time, doubt, mercy) directly — convert it into one concrete drawable symbol (faith → a small seedling pushing through cracked ground; doubt → a fork in a path; mercy → an open hand). The subject must be catchy and immediately legible.
+- You have the ENTIRE script. Before writing any prompt, understand the overall story and emotional arc. Then for EACH shot, convert its line into ONE clear, instantly-readable drawable subject — a single concrete object, figure, or simple scene that represents that line's meaning WITHIN the whole story's arc. Never describe an abstract concept (faith, time, doubt, mercy) directly — convert it into one concrete drawable symbol (faith → a small seedling pushing through cracked ground; doubt → a fork in a path; mercy → an open hand). The subject must be catchy and immediately legible. ONE moment per shot — a single drawable instant, never a sequence of actions (not "stands, then falls"; pick one).
 - EVERY shot is the same medium: a self-drawing line drawing on a clean white background. The only "world" is the whiteboard itself (already set). Focus entirely on WHAT is drawn, not where.
-- This style is TEXT-TO-VIDEO with NO reference image. There is NO image_prompt for this style — set "image_prompt" to exactly "" (empty). The video_prompt alone carries BOTH the subject (what is drawn) and the self-drawing motion (how it is drawn).
+- This style uses a REFERENCE IMAGE. The image_prompt describes the FINISHED drawing in full detail (the completed line-art the video resolves into) — subject, composition, line treatment. The video_prompt is the self-drawing motion that resolves INTO that image; it does NOT re-describe the scene (the image carries the scene). Both are required.
 - COMPLEXITY SCALES WITH SHOT DURATION: a short shot gets a SIMPLE subject (one object, few strokes); a longer shot gets a slightly RICHER subject. Keep subjects simple — fewer elements draw more cleanly. Match complexity to the words-per-shot.
 - ONE subject per shot, centered, with plenty of empty white space around it. No busy backgrounds, no multiple competing elements, no scenery filling the frame.
 - NO on-screen text, words, letters, numbers, captions, or labels anywhere in the drawing — none, ever, even though real whiteboard videos often have them (generators garble text). Draw the meaning as an image only.
 - "characters" should name a figure only if the drawn subject is a person/character; otherwise "No character".
 
-WHITEBOARD MOTION (video_prompt — same structure every shot)
-- Every video_prompt follows this shape: "2D black and white line-art whiteboard animation on a clean white background. Black lines smoothly and progressively draw themselves with no hand visible, continuously tracing without any sudden jumps, cuts, or flashes, slowly revealing [the concrete subject for this shot] until the drawing is complete. Clean confident black line-art, no color, no on-screen text."
-- Replace [the concrete subject for this shot] with the drawable subject you chose for this line — described plainly and concretely (e.g. "a single clenched fist raised upward in defiance"). This subject text is the ONLY thing that varies between shots; the rest of the wrapper is identical every time.
-- NO visible hand, NO marker. The lines draw themselves. Do NOT write "a hand holding a marker."
-- NO reference image and NO end frame — this is pure text-to-video; the prompt's subject description is the only thing telling the model what to draw.
-- "self-drawing line-art," NEVER "timelapse" (timelapse reads as choppy/streaking).` : "";
+WHITEBOARD MOTION (video_prompt — same structure every shot, content-free)
+- Every video_prompt is EXACTLY this, identical for every shot (it does NOT name the subject — the reference image supplies it): "2D black and white line-art whiteboard animation starting from a completely blank white background, where black lines smoothly and progressively draw themselves across the screen with no hand visible, continuously tracing without any sudden jumps, cuts, or flashes, slowly revealing the artwork until the final frame perfectly matches and resolves into the provided reference image."
+- Do NOT add the subject to the video_prompt — the subject lives only in the image_prompt. The video_prompt is the same fixed sentence every time.
+- NO visible hand, NO marker. The lines draw themselves.
+- The generated image is fed as the END / LAST frame in the generator; the video draws toward it. "self-drawing line-art," NEVER "timelapse" (timelapse reads as choppy/streaking).` : "";
 
   const bibBlock = landscapeBlock || jesusBlock || whiteboardBlock;
   const depictionRules = isWhiteboard
@@ -1657,10 +1676,9 @@ $("parseBtn").addEventListener("click", () => {
 
   RESULT = data;
   // completeness check: empty prompts usually mean the model's reply was cut off
-  const _isWB = /^Whiteboard Animation/.test($("style").value);
   let emptyImg = 0, emptyVid = 0;
   RESULT.shots.forEach(sh => {
-    if (!_isWB && !String(sh.image_prompt || "").trim()) emptyImg++;  // whiteboard has no image by design
+    if (!String(sh.image_prompt || "").trim()) emptyImg++;
     if (!String(sh.video_prompt || "").trim()) emptyVid++;
   });
   RESULT._parseInfo = {
@@ -1671,18 +1689,19 @@ $("parseBtn").addEventListener("click", () => {
   const isI2V = $("mode").value === "i2v";
   const isWB = /^Whiteboard Animation/.test($("style").value);
   RESULT.shots.forEach(sh => {
+    const p = (sh.image_prompt || "").trimEnd();
+    if (p) sh.image_prompt = p + ' make the file name "' + (sh.n ?? "") + '".';
     if (isWB){
-      // whiteboard is t2v with no image — name the VIDEO (the only asset)
-      const v = (sh.video_prompt || "").trimEnd();
-      if (v) sh.video_prompt = v + ' make the file name "' + (sh.n ?? "") + '".';
-      sh.image_prompt = "";   // ensure no image prompt for whiteboard
-    } else {
-      const p = (sh.image_prompt || "").trimEnd();
-      if (p) sh.image_prompt = p + ' make the file name "' + (sh.n ?? "") + '".';
-      if (isI2V){
-        const v = (sh.video_prompt || "").trim();
-        if (v && !/^start from attached image/i.test(v)) sh.video_prompt = "Start from attached image as the first frame. " + v;
+      // whiteboard: image is the END/LAST frame; name the video too, anchor it to the end frame
+      const v = (sh.video_prompt || "").trim();
+      if (v){
+        let vv = v;
+        if (!/end frame|last frame/i.test(vv)) vv = "Use the attached image as the END / last frame. " + vv;
+        sh.video_prompt = vv.replace(/\s*$/, "") + ' make the file name "' + (sh.n ?? "") + '".';
       }
+    } else if (isI2V){
+      const v = (sh.video_prompt || "").trim();
+      if (v && !/^start from attached image/i.test(v)) sh.video_prompt = "Start from attached image as the first frame. " + v;
     }
   });
   renderResult(data);
@@ -1822,12 +1841,13 @@ function lintShot(sh, isWB){
   const img = cleanImg(sh.image_prompt);
   const vid = String(sh.video_prompt || "").trim();
   if (isWB){
-    // whiteboard is t2v with no image — the subject lives in the video prompt
+    // whiteboard: subject lives in the image_prompt; video_prompt is a fixed wrapper
+    if (!img) issues.push({ lab:"empty", t:"no image prompt" });
     if (!vid) issues.push({ lab:"empty", t:"no video prompt" });
-    if (vid){
-      const vClean = cleanImg(vid);
-      if (LINT.PLACEHOLDER.test(vClean)) issues.push({ lab:"placeholder", t:"looks like a placeholder, not a finished prompt" });
-      if (LINT.ABSTRACT.test(vClean)) issues.push({ lab:"abstract", t:"subject reads abstract — whiteboard needs one concrete drawable object/figure" });
+    if (img){
+      if (LINT.PLACEHOLDER.test(img)) issues.push({ lab:"placeholder", t:"looks like a placeholder, not a finished prompt" });
+      if (LINT.TEXT.test(img)) issues.push({ lab:"text", t:"may render on-screen text (generators garble text)" });
+      if (LINT.ABSTRACT.test(img)) issues.push({ lab:"abstract", t:"subject reads abstract — whiteboard needs one concrete drawable object/figure" });
     }
     return issues;
   }
@@ -2066,10 +2086,10 @@ function applyState(p, projName){
   loadStyleRecipe();
   $("tool").value = s.tool || "Veo"; $("mode").value = s.mode || "i2v";
   $("wpm").value = s.wpm || 140; $("clipLen").value = s.clipLen || 5;
-  // whiteboard styles re-lock mode to t2v after restoring saved settings
+  // whiteboard styles re-lock mode to i2v (end-frame) after restoring saved settings
   if (/^Whiteboard Animation/.test($("style").value)){
-    _preWhiteboard = { mode: (s.mode === "t2v" ? "i2v" : (s.mode || "i2v")), wpm: s.wpm || 140 };
-    $("mode").value = "t2v"; $("mode").disabled = true;
+    _preWhiteboard = { mode: (s.mode === "i2v" ? "i2v" : (s.mode || "i2v")), wpm: s.wpm || 140 };
+    $("mode").value = "i2v"; $("mode").disabled = true;
   }
   $("stripOptional").checked = !!s.stripOptional;
   $("aspect").value = s.aspect || "16:9";
