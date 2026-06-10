@@ -5,6 +5,18 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.26.0
+    - Fixed whiteboard prompt contradictions (the cinematic scaffolding fought
+      the whiteboard rules). DEPICTION_RULES split into WORLD_RULES,
+      DEPICTION_CORE, and FULL_FRAME_RULE, assembled conditionally:
+      • Whiteboard now gets a trivial single "Whiteboard" world (schema stays
+        valid, no competing world-building / time-of-day derivation).
+      • PALETTE PROGRESSION (a lighting/time-of-day rule) excluded for
+        whiteboard — meaningless on a white board.
+      • FULL-FRAME rule excluded for whiteboard (it conflicted with the
+        one-subject-centered-with-white-space rule; white space wins).
+      All other styles keep world-building, palette progression, and full-frame
+      exactly as before. No schema change — "world" field still populated.
   v1.25.0
     - Clarified the wpm × reading-time → shots relationship (was ambiguous in
       the UI). Added a live readout under the stats: "X wpm × Ys/shot → ~N
@@ -928,7 +940,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.25.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.26.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -943,7 +955,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.25.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.26.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -1353,7 +1365,7 @@ function modeRules(mode, clip){
        + `image_prompt = an optional single keyframe still of the same shot.`;
 }
 
-const DEPICTION_RULES =
+const WORLD_RULES =
 `WORLD(S) — do this first
 - Identify the distinct world(s) the narration moves through. A world = a setting + time period + who and what belongs in it. Many scripts have ONE world; some shift between worlds (e.g. an ancient story and its present-day parallel, a "then vs now", a flashback). Detect this from the narration's content, tense, and references ("today", "now", "you").
 - For EACH world, DERIVE from the narration (do not assume): its setting and era, the light sources that genuinely fit it (e.g. sun / fire vs lamps / neon / screens), who is present, and what would be OUT OF PLACE there (anachronisms, structures, crowds, objects that don't belong). Put these in "worlds" with a short name + description.
@@ -1362,13 +1374,27 @@ const DEPICTION_RULES =
 - When creating multiple worlds, each must have a DISTINCT lighting condition and time of day. Two night worlds is not permitted — if one world is dark or night, the other must be visibly different, progressing from dawn to daylight.
 - PALETTE PROGRESSION: vary the visual palette across the video. Avoid 30+ consecutive shots at the same time of day. When the emotional arc moves from distress to peace, progress from dark to light — the emotional meaning overrides the literal time of day in the narration.
 
-DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
+`;
+
+const DEPICTION_CORE =
+`DEPICTION & VARIETY (applies to every image_prompt and video_prompt)
 - Depict the MEANING of each shot — the people, events, places, and symbols the words refer to — NOT the words themselves. When a shot names or paraphrases a quote, verse, or reference, visualise the scene or symbol it points to (e.g. a line about sacrifice -> the sacrifice itself; a line about Christ -> Christ / the cross / breaking light), never a picture of the text.
 - Do NOT render narration, quotes, or references as visible text, scrolls, pages, books, captions, signage, or typography. NEVER place readable words, letters, captions, numbers, or watermarks anywhere in any image — visualise the meaning instead. (Generators render text as garbled nonsense, and text is not wanted.)
 - When a person is warranted, do NOT default to kneeling, lying down, or praying — choose the action the specific line implies, and vary the human depiction from shot to shot so figures are not all in the same pose.
 - VARIETY IS REQUIRED: no two consecutive shots may share the same subject, setting, or composition. Vary the scene, camera angle, and scale from each shot to the next. Never write "same frame", "same shot", "same scene", or "same X as before" continuations.
-- Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.
+- Consistency applies ONLY to recurring characters and the overall visual style (per the bible). It must NOT make scenes, props, or compositions repeat. Keep characters consistent; keep scenes varied.`;
+
+const FULL_FRAME_RULE =
+`
 - FULL-FRAME: render every image edge to edge at the target aspect ratio. Do NOT add letterbox bars, black bars, cinemascope or matte borders, or framing strips of any kind — the picture must reach all four edges.`;
+
+// Whiteboard replaces the cinematic WORLD section with a single trivial world,
+// so the schema's "world" field stays valid without competing world-building.
+const WORLD_RULES_WHITEBOARD =
+`WORLD(S)
+- This style has NO world-building, NO settings, NO time of day, NO lighting worlds. Output exactly ONE world in the "worlds" array: { "name": "Whiteboard", "description": "Hand drawing on a clean white background; no location, no lighting, no time of day." } and set EVERY shot's "world" to "Whiteboard". Do not derive settings, eras, light sources, or anachronism exclusions — they do not apply.
+
+`;
 
 function buildSuperPrompt(script){
   const translate = $("translate").checked;
@@ -1415,7 +1441,7 @@ LANDSCAPE MOTION — keep every shot alive (video_prompt)
 
 WHITEBOARD ANIMATION (hard rules for this style, overrides any storytelling instinct)
 - You have the ENTIRE script. Before writing any prompt, understand the overall story and emotional arc. Then for EACH shot, convert its line into ONE clear, instantly-readable drawable subject — a single concrete object, figure, or simple scene that represents that line's meaning WITHIN the whole story's arc. Never describe an abstract concept (faith, time, doubt, mercy) directly — convert it into one concrete drawable symbol (faith → a small seedling pushing through cracked ground; doubt → a fork in a path; mercy → an open hand). The subject must be catchy and immediately legible the moment the hand finishes drawing it.
-- EVERY shot is the same medium: a hand drawing on a white background. There is NO location, NO landscape, NO time of day, NO lighting world — just the white board and the drawing. Ignore any setting/world/time-of-day reasoning for this style; it does not apply.
+- EVERY shot is the same medium: a hand drawing on a clean white background. The only "world" is the whiteboard itself (already set). Focus entirely on WHAT is drawn, not where.
 - image_prompt describes the FINISHED drawing (the completed image the hand has drawn) — the subject, its composition, and the line/color treatment. video_prompt describes the hand drawing it from blank to complete.
 - COMPLEXITY SCALES WITH SHOT DURATION: a short shot gets a SIMPLE subject (one object, few strokes) so the hand finishes in time; a longer shot gets a RICHER subject (a small scene, more detail) so the hand is not idle. Match drawing complexity to the words-per-shot.
 - ONE subject per shot, centered, with plenty of empty white space around it. No busy backgrounds, no multiple competing elements, no scenery filling the frame.
@@ -1428,7 +1454,9 @@ WHITEBOARD MOTION (video_prompt — same structure every shot)
 - "Continuous real-time hand-drawing," NEVER "timelapse" (timelapse reads as choppy/streaking).` : "";
 
   const bibBlock = landscapeBlock || jesusBlock || whiteboardBlock;
-  const depictionRules = DEPICTION_RULES + bibBlock;
+  const depictionRules = isWhiteboard
+    ? (WORLD_RULES_WHITEBOARD + DEPICTION_CORE + bibBlock)   // no PALETTE, no FULL-FRAME
+    : (WORLD_RULES + DEPICTION_CORE + FULL_FRAME_RULE + bibBlock);
   const tool = $("tool").value;
   const mode = $("mode").value;
   const clip = Math.max(1, parseFloat($("clipLen").value) || 5);
