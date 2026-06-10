@@ -5,6 +5,17 @@
   ============================================================
   Script to Shot Prompts — CHANGELOG
   ------------------------------------------------------------
+  v1.25.0
+    - Clarified the wpm × reading-time → shots relationship (was ambiguous in
+      the UI). Added a live readout under the stats: "X wpm × Ys/shot → ~N
+      shots, ~W words each" — updates as you type. Reading time / shot is the
+      lever that changes shot count; wpm only changes it via total duration.
+    - Per-style reading-time defaults (overwrite on user style change only):
+      Landscape 12s, Biblical 12s, Cinematic 10s, Custom 6s, Whiteboard 8s.
+      The 9 unused styles are left alone. Saved projects keep their stored
+      reading-time on load (defaults never clobber a loaded project).
+    - Whiteboard now also auto-sets reading time to 8s (the lever that actually
+      controls drawing count) in addition to the existing 150 wpm + t2v lock.
   v1.24.0
     - New style family: Whiteboard Animation (5 entries — Black & White,
       Blue Accent, Red Accent, Multicolor Accent, Full Color). Continuous
@@ -748,6 +759,7 @@
       <div class="stat"><div class="n" id="statShots">0</div><div class="l">Shots (auto)</div></div>
     </div>
 
+    <p id="chainNote" style="margin-top:10px;font-size:13px;color:var(--ink-soft)"></p>
     <p id="shotNote" class="hidden"></p>
     <p id="sumNote" class="hidden" style="margin-top:12px;font-size:13px;background:#FBF3E2;color:#7A5A12;border:1px solid #ECD9A8;padding:9px 13px;border-radius:9px">Summarize is on — the AI writes a short version, so the shot count above is only an estimate from your full script; the real count comes from the short version.</p>
 
@@ -916,7 +928,7 @@
 
   <footer>
     Runs entirely in your browser. To publish: rename this file to <code>index.html</code>, push to your repo, then enable <b>GitHub&nbsp;Pages</b> (Settings → Pages → deploy from your branch).
-    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.24.0</div>
+    <div style="margin-top:12px;opacity:.65">Script to Shot Prompts · v1.25.0</div>
   </footer>
 </div>
 <div id="jumpPanel" class="hidden">
@@ -931,7 +943,7 @@ const $ = id => document.getElementById(id);
 const MAX_CHARS = 12000;       // warn-and-cap threshold
 const MIN_CHARS = 25;
 const CJK_CPM = 240;           // chars/min fallback for CJK narration
-const APP_VERSION = "1.24.0";   // built-with version, stamped into exports
+const APP_VERSION = "1.25.0";   // built-with version, stamped into exports
 
 let RESULT = null;             // parsed model output
 let SEGMENTS = null;           // app-side segmentation (passthrough B2 mode)
@@ -975,6 +987,12 @@ function updateStats(){
   $("statDur").textContent = words ? (mm + ":" + String(ss).padStart(2,"0")) : "0:00";
   const shots = words ? Math.max(1, Math.ceil(seconds / clip)) : 0;
   $("statShots").textContent = shots;
+  // live chain readout: makes the wpm × reading-time → shots relationship visible
+  const cn = $("chainNote");
+  if (words && cn){
+    const perShot = Math.round(words / shots);
+    cn.textContent = wpm + " wpm × " + clip + "s/shot → ~" + shots + " shots, ~" + perShot + " words each. (Reading time / shot is what changes the shot count.)";
+  } else if (cn){ cn.textContent = ""; }
   const sn = $("shotNote");
   if (shots >= 60){
     const mins = Math.max(1, Math.round(seconds/60));
@@ -1006,7 +1024,19 @@ const STYLE_RECIPES = {
   "Whiteboard Animation - Full Color": "Continuous real-time hand-drawing whiteboard animation on a clean white background. A hand holding a marker draws at a steady, consistent speed from the first stroke, building one clear image progressively to completion, then filling it with full marker color by the end. Black outlines with complete color fill, clean confident lines, one subject, centered, plenty of white space. Avoid: photorealism, busy backgrounds, multiple competing subjects, on-screen text or words, sudden changes, skipped frames, visual drift, timelapse streaking."
 };
 let _preWhiteboard = null;   // remembers mode+wpm before a whiteboard style forced them
-function loadStyleRecipe(){
+// Per-style recommended reading-time / shot (seconds). Styles not listed are left alone.
+const STYLE_CLIPLEN = {
+  "Photorealistic Landscape": 12,
+  "Photorealistic Biblical": 12,
+  "Cinematic": 10,
+  "__custom": 6,
+  "Whiteboard Animation - Black & White": 8,
+  "Whiteboard Animation - Blue Accent": 8,
+  "Whiteboard Animation - Red Accent": 8,
+  "Whiteboard Animation - Multicolor Accent": 8,
+  "Whiteboard Animation - Full Color": 8
+};
+function loadStyleRecipe(fromUser){
   const v = $("style").value;
   const ta = $("styleRecipe");
   if (v === "__custom"){
@@ -1025,16 +1055,21 @@ function loadStyleRecipe(){
     if (!_preWhiteboard) _preWhiteboard = { mode: $("mode").value, wpm: $("wpm").value };
     $("mode").value = "t2v"; $("mode").disabled = true;
     $("wpm").value = 150;
-    $("styleHint").textContent = "Whiteboard styles draw blank → finished, so prompt mode is locked to text-to-video and the speaking rate is set to 150 wpm.";
+    $("styleHint").textContent = "Whiteboard styles draw blank → finished, so prompt mode is locked to text-to-video, speaking rate 150 wpm, and reading time 8s/shot.";
   } else if (_preWhiteboard){
     $("mode").value = _preWhiteboard.mode; $("mode").disabled = false;
     $("wpm").value = _preWhiteboard.wpm;
     _preWhiteboard = null;
   }
+  // Per-style reading-time default — only on a real user style change (overwrite),
+  // never on programmatic load (so saved projects keep their stored value).
+  if (fromUser && Object.prototype.hasOwnProperty.call(STYLE_CLIPLEN, v)){
+    $("clipLen").value = STYLE_CLIPLEN[v];
+  }
   if (typeof updateStats === "function") updateStats();
   if (typeof autoGrow === "function") autoGrow(ta);
 }
-$("style").addEventListener("change", loadStyleRecipe);
+$("style").addEventListener("change", () => loadStyleRecipe(true));
 
 function reflectSummarize(){ $("sumNote").classList.toggle("hidden", !$("summarize").checked); }
 $("summarize").addEventListener("change", reflectSummarize);
